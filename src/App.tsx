@@ -1,75 +1,71 @@
-import type { GameState, Question } from '@shared/types';
+import { useState } from 'preact/hooks';
+import type { GameState, QuestionMode, QuestionSourceQuery } from '@shared/types';
 import type { JSX } from 'preact';
 import type { Dispatch } from 'preact/hooks';
 import { useGameState, type GameAction } from '@/hooks/useGameState';
 import { AudioPlayer } from '@/components/AudioPlayer';
+import { Menu } from '@/components/Menu';
+import { fetchQuestions } from '@/lib/api';
+
+const QUESTION_COUNT = 5;
+const USER_ID_KEY = 'h5-spot-diff.userId';
 
 /**
- * Placeholder round data so the menu's 开始游戏 button exercises the real
- * state machine until todo 11 wires the menu to the API client.
+ * Anonymous player identity (todo 11). Created once via crypto.randomUUID()
+ * and persisted in localStorage; reused by the ratings API later (todo 18).
  */
-const PLACEHOLDER_QUESTIONS: Question[] = [
-  {
-    id: 'placeholder-1',
-    mode: 'spot_diff',
-    title: '占位题目',
-    description: '找出两图的不同之处（占位数据，todo 11 接入真实题目）',
-    imageA: 'https://picsum.photos/seed/a/800/600',
-    imageB: 'https://picsum.photos/seed/b/800/600',
-    differences: [
-      { type: 'circle', x: 120, y: 80, radius: 25 },
-      { type: 'rect', x: 300, y: 150, width: 40, height: 30 },
-      { type: 'circle', x: 600, y: 400, radius: 20 },
-    ],
-    showCount: true,
-    source: 'official',
-    status: 'approved',
-    likes: 0,
-    dislikes: 0,
-    createdAt: '2026-08-14T00:00:00Z',
-  },
-];
+function getOrCreateUserId(): string {
+  const existing = localStorage.getItem(USER_ID_KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(USER_ID_KEY, id);
+  return id;
+}
 
 export function App() {
   const { state, dispatch } = useGameState();
+  const [startError, setStartError] = useState<string | null>(null);
+
+  /**
+   * Menu start handler — ALL game-start logic lives here (todo 11 contract:
+   * Menu is presentational, never fetches). Reducer phase guard makes a
+   * double-tap race harmless: the second START_GAME no-ops after phase flips.
+   */
+  const handleStart = (mode: QuestionMode, source: QuestionSourceQuery): void => {
+    getOrCreateUserId();
+    setStartError(null);
+    fetchQuestions(mode, source, QUESTION_COUNT)
+      .then((questions) => {
+        if (questions.length === 0) {
+          setStartError('暂无可用题目，请稍后再试');
+          return;
+        }
+        dispatch({ type: 'START_GAME', mode, source, questions });
+      })
+      .catch((err: unknown) => {
+        console.error('加载题目失败:', err);
+        setStartError(err instanceof Error ? err.message : '加载题目失败，请检查网络后重试');
+      });
+  };
 
   return (
     <>
-      {renderPhase(state, dispatch)}
+      {renderPhase(state, dispatch, handleStart, startError)}
       {/* Floating BGM player — present on every screen, never autoplays. */}
       <AudioPlayer />
     </>
   );
 }
 
-function renderPhase(state: GameState, dispatch: Dispatch<GameAction>): JSX.Element {
+function renderPhase(
+  state: GameState,
+  dispatch: Dispatch<GameAction>,
+  handleStart: (mode: QuestionMode, source: QuestionSourceQuery) => void,
+  startError: string | null,
+): JSX.Element {
   switch (state.phase) {
     case 'menu':
-      return (
-        <main className="screen">
-          <h1 className="font-display" style={{ fontSize: 'var(--font-size-display)' }}>
-            找不同
-          </h1>
-          <p className="text-muted">
-            双图找茬 · 区域识别 · 答题小游戏
-          </p>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() =>
-              dispatch({
-                type: 'START_GAME',
-                mode: 'spot_diff',
-                source: 'official',
-                questions: PLACEHOLDER_QUESTIONS,
-              })
-            }
-          >
-            开始游戏
-          </button>
-          <span className="chip">菜单占位 · todo 11 接入真实菜单</span>
-        </main>
-      );
+      return <Menu onStart={handleStart} startError={startError} />;
     case 'playing':
       return (
         <main className="screen">

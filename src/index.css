@@ -265,6 +265,47 @@ button {
 }
 
 /* --------------------------------------------------------------------------
+   8.1 ImagePanel (todo 12) — image + overlay + found-difference markers
+   All marker positions/sizes arrive as inline styles computed from the
+   contain transform (src/components/ImagePanel.tsx) — this file only carries
+   layout/skin tokens.
+   -------------------------------------------------------------------------- */
+.image-panel {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  background: var(--color-surface);
+}
+
+.image-panel-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Precision tap surface — covers the FULL element (letterbox included, so a
+   letterbox tap converts to out-of-bounds native coords → onMiss). */
+.image-panel-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Found-difference marker: border-radius/size set per-type via inline style;
+   the pop animation is the "found it!" feedback (design system §9). */
+.image-panel-marker {
+  position: absolute;
+  border: 3px solid var(--color-success);
+  pointer-events: none;
+  animation: var(--anim-pop);
+}
+
+/* --------------------------------------------------------------------------
    9. Keyframe animation tokens (DESIGN.md §6)
    -------------------------------------------------------------------------- */
 
@@ -534,4 +575,159 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* --------------------------------------------------------------------------
+   12. Menu screen (todo 11) — mode cards + source toggle + start button
+   -------------------------------------------------------------------------- */
+.menu {
+  justify-content: flex-start;
+  gap: var(--space-6);
+  padding-top: calc(var(--space-10) + var(--safe-area-top));
+  text-align: center;
+}
+
+.menu__hero h1 {
+  margin-bottom: var(--space-2);
+}
+
+.menu__section {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  text-align: left;
+}
+
+.menu__heading {
+  font-size: var(--font-size-h2);
+  color: var(--color-ink);
+}
+
+/* Two touch cards side by side — ≥44px targets, candy elevation */
+.menu__modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 136px;
+  padding: var(--space-4) var(--space-3);
+  border: 3px solid var(--color-background-alt);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: transform var(--duration-micro) var(--ease-bounce),
+    box-shadow var(--duration-standard) ease-out,
+    border-color var(--duration-micro) ease-out;
+}
+
+.mode-card:active:not(.mode-card--active) {
+  transform: scale(0.96);
+}
+
+/* Selected state: gradient + candy shadow + pop entry (selection feedback) */
+.mode-card--active {
+  border-color: var(--color-primary);
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-alt));
+  box-shadow: var(--shadow-candy);
+  animation: var(--anim-pop);
+}
+
+.mode-card__icon {
+  width: 44px;
+  height: 44px;
+  color: var(--color-primary);
+  transition: color var(--duration-micro) ease-out;
+}
+
+.mode-card--active .mode-card__icon {
+  color: var(--color-ink-on);
+}
+
+.mode-card__label {
+  font-family: var(--font-display);
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-ink);
+}
+
+.mode-card--active .mode-card__label {
+  color: var(--color-ink-on);
+}
+
+.mode-card__desc {
+  font-size: var(--font-size-micro);
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+
+.mode-card--active .mode-card__desc {
+  color: color-mix(in srgb, var(--color-ink-on) 88%, transparent);
+}
+
+/* Segmented source toggle — pill track with sliding surface highlight */
+.source-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-background-alt);
+  border-radius: var(--radius-button);
+}
+
+.source-toggle__option {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: calc(var(--radius-button) - 6px);
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: background var(--duration-micro) ease-out,
+    color var(--duration-micro) ease-out,
+    box-shadow var(--duration-micro) ease-out;
+}
+
+.source-toggle__option:active:not(.source-toggle--active) {
+  transform: scale(0.96);
+}
+
+.source-toggle--active {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-card);
+}
+
+/* Start button — full-width candy CTA, disabled until a mode is picked */
+.menu__start {
+  width: 100%;
+  max-width: 420px;
+  min-height: 52px;
+}
+
+.menu__error {
+  max-width: 420px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: #c23a5c;
+  background: color-mix(in srgb, var(--color-danger) 14%, white);
 }
