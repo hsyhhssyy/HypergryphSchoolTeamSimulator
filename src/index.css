@@ -336,6 +336,42 @@ button {
   max-width: 720px;
 }
 
+/* find_area (todo 14): single ImagePanel, centered full-width — the
+   .game-screen flex parent already centers the 720px container, so a single
+   1fr column makes the panel span the full track. */
+.game-panels--single {
+  grid-template-columns: 1fr;
+}
+
+/* Question title + 题目描述 instruction block (todo 14) — prominent
+   high-contrast card (ink on surface) with a primary accent edge, always
+   visible above the panels during gameplay. */
+.question-description {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 720px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-left: 6px solid var(--color-primary);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.question-description__title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-h2);
+  color: var(--color-ink);
+}
+
+.question-description__text {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-ink);
+}
+
 /* round_end interstitial — covers the still-mounted panels (timer paused,
    NEXT_ROUND auto-dispatch in ~1500ms, todo 13). */
 .round-end {

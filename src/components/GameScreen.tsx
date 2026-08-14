@@ -19,8 +19,11 @@
  *   interstitial, and a new question must never inherit leftover time.
  * - The 800ms wrong-click cooldown is COMPONENT-level: ImagePanel
  *   `disabled={cooldown}` + a setTimeout here. No reducer field, no action.
- * - find_area (todo 14) falls out naturally: an imageB-less question renders
- *   a single centered panel — same hit logic, no duplicate code path.
+ * - find_area (todo 14): an imageB-less question renders a SINGLE centered
+ *   full-width panel (`.game-panels--single` modifier on the same container)
+ *   — same hit logic via the same ImagePanel, no duplicate code path.
+ * - QuestionDescription (todo 14) renders title + required 题目描述 above the
+ *   panels for BOTH modes — always visible during gameplay.
  *
  * NO Canvas. NO hardcoded image dimensions.
  */
@@ -31,6 +34,7 @@ import type { GameAction } from '@/hooks/useGameState';
 import { WRONG_TIME_PENALTY_SECONDS, type TimerControls } from '@/hooks/useTimer';
 import { resolveImageUrl } from '@/lib/api';
 import { ImagePanel } from '@/components/ImagePanel';
+import { QuestionDescription } from '@/components/QuestionDescription';
 
 /** Seconds per question (60s default; documented in .omo/notepads decisions.md). */
 export const QUESTION_TIME_LIMIT = 60;
@@ -192,7 +196,20 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
         </span>
       </header>
 
-      <div className="game-panels">
+      {/* Title + 题目描述 instruction text (todo 14) — REQUIRED per Question,
+          always visible above the panels in BOTH modes. */}
+      <QuestionDescription
+        title={currentQuestion.title}
+        description={currentQuestion.description}
+      />
+
+      {/* find_area (imageB undefined, todo 14) → single centered full-width
+          panel via the --single modifier; spot_diff keeps the 2-col grid. */}
+      <div
+        className={`game-panels${
+          currentQuestion.imageB === undefined ? ' game-panels--single' : ''
+        }`}
+      >
         <ImagePanel
           src={resolveImageUrl(currentQuestion.imageA)}
           differences={currentQuestion.differences}
