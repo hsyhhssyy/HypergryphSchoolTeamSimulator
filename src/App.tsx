@@ -8,26 +8,24 @@ import { AudioPlayer } from '@/components/AudioPlayer';
 import { GameScreen, QUESTION_TIME_LIMIT } from '@/components/GameScreen';
 import { Menu } from '@/components/Menu';
 import { Result } from '@/components/Result';
+import { WorkshopSubmit } from '@/components/WorkshopSubmit';
 import { fetchQuestions } from '@/lib/api';
+import { getOrCreateUserId } from '@/lib/userId';
 
 const QUESTION_COUNT = 5;
-const USER_ID_KEY = 'h5-spot-diff.userId';
 
 /**
- * Anonymous player identity (todo 11). Created once via crypto.randomUUID()
- * and persisted in localStorage; reused by the ratings API later (todo 18).
+ * Top-level screen switching INDEPENDENT of GamePhase (todo 20). 'game'
+ * renders the phase-driven game flow; 'workshop' overlays the submission
+ * form (todo 22 extends this with 'admin'). Game state is untouched while
+ * the view is 'workshop' — returning to 'game' resumes where it left off.
  */
-function getOrCreateUserId(): string {
-  const existing = localStorage.getItem(USER_ID_KEY);
-  if (existing) return existing;
-  const id = crypto.randomUUID();
-  localStorage.setItem(USER_ID_KEY, id);
-  return id;
-}
+type View = 'game' | 'workshop';
 
 export function App() {
   const { state, dispatch } = useGameState();
   const [startError, setStartError] = useState<string | null>(null);
+  const [view, setView] = useState<View>('game');
 
   /**
    * THE timer (todo 9) lives at App level and is passed down — the reducer
@@ -63,7 +61,11 @@ export function App() {
 
   return (
     <>
-      {renderPhase(state, dispatch, handleStart, startError, timer)}
+      {view === 'workshop' ? (
+        <WorkshopSubmit onBack={() => setView('game')} />
+      ) : (
+        renderPhase(state, dispatch, handleStart, startError, timer, () => setView('workshop'))
+      )}
       {/* Floating BGM player — present on every screen, never autoplays. */}
       <AudioPlayer />
     </>
@@ -76,10 +78,11 @@ function renderPhase(
   handleStart: (mode: QuestionMode, source: QuestionSourceQuery) => void,
   startError: string | null,
   timer: TimerControls,
+  onOpenWorkshop: () => void,
 ): JSX.Element {
   switch (state.phase) {
     case 'menu':
-      return <Menu onStart={handleStart} startError={startError} />;
+      return <Menu onStart={handleStart} startError={startError} onOpenWorkshop={onOpenWorkshop} />;
     case 'playing':
     case 'round_end':
       return <GameScreen state={state} dispatch={dispatch} timer={timer} />;
