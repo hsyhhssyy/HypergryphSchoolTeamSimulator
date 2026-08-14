@@ -319,6 +319,19 @@ async function submitWorkshopViaUI(
     })
     .toBeGreaterThan(0);
 
+  // The .workshop-editor card enters with a 350ms `pop` animation (scale
+  // 0.85→1). Measuring the overlay mid-animation yields a SCALED box, but
+  // click({position}) waits for actionability (animation settles) and then
+  // resolves the element-relative center against the SETTLED box — the
+  // pointerdown would land off-center and the app would faithfully store the
+  // off-center point (task 28b race). Wait for the entrance animation to
+  // COMPLETE before measuring/clicking so the center is the TRUE center.
+  await page.waitForFunction(() => {
+    const el = document.querySelector('.workshop-editor');
+    const anims = el?.getAnimations() ?? [];
+    return anims.length === 0 || anims.every((a) => a.playState === 'finished');
+  });
+
   // Author ONE circle difference at the editor CENTER (element-relative
   // click, auto-scrolls — page.mouse.click would not). The overlay box equals
   // the img box, so the display center maps to the native image center.
