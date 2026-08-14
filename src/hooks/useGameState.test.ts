@@ -60,6 +60,7 @@ describe('START_GAME', () => {
     expect(state.questions).toHaveLength(2);
     expect(state.score).toBe(0);
     expect(state.foundIndices).toEqual([]);
+    expect(state.totalFound).toBe(0);
     expect(state.wrongCount).toBe(0);
   });
 
@@ -84,6 +85,7 @@ describe('FOUND_DIFFERENCE', () => {
     expect(state.phase).toBe('playing');
     expect(state.score).toBe(FOUND_SCORE);
     expect(state.foundIndices).toEqual([0]);
+    expect(state.totalFound).toBe(1);
     expect(state.currentQuestion).toEqual(qOne());
   });
 
@@ -96,6 +98,7 @@ describe('FOUND_DIFFERENCE', () => {
     expect(state.score).toBe(FOUND_SCORE + FOUND_SCORE + 7 * TIME_BONUS_PER_SECOND);
     expect(state.timeLeft).toBe(7);
     expect(state.foundIndices).toEqual([0, 1]);
+    expect(state.totalFound).toBe(2);
   });
 
   it('awards no bonus when timeLeft is 0', () => {
@@ -114,6 +117,7 @@ describe('FOUND_DIFFERENCE', () => {
     expect(state).toBe(before);
     expect(state.score).toBe(FOUND_SCORE);
     expect(state.foundIndices).toEqual([0]);
+    expect(state.totalFound).toBe(1);
   });
 
   it('ignores an out-of-range index', () => {
@@ -187,6 +191,7 @@ describe('NEXT_ROUND', () => {
     expect(state.questionIndex).toBe(1);
     expect(state.currentQuestion).toEqual(qTwo());
     expect(state.foundIndices).toEqual([]);
+    expect(state.totalFound).toBe(2); // cumulative — NOT reset by NEXT_ROUND
     expect(state.score).toBe(FOUND_SCORE + FOUND_SCORE + 7 * TIME_BONUS_PER_SECOND);
     expect(state.timeLeft).toBe(0);
   });
@@ -222,6 +227,7 @@ describe('RESET', () => {
     expect(state.score).toBe(0);
     expect(state.wrongCount).toBe(0);
     expect(state.foundIndices).toEqual([]);
+    expect(state.totalFound).toBe(0);
     expect(state.questions).toEqual([]);
     expect(state.currentQuestion).toBeNull();
   });
@@ -251,17 +257,21 @@ describe('full lifecycle', () => {
     dispatch({ type: 'FOUND_DIFFERENCE', index: 1, timeLeft: 8 });
     expect(state.phase).toBe('round_end');
     expect(state.score).toBe(2 * FOUND_SCORE + 8 * TIME_BONUS_PER_SECOND);
+    expect(state.totalFound).toBe(2);
 
     dispatch({ type: 'NEXT_ROUND' });
     expect(state.phase).toBe('playing');
     expect(state.questionIndex).toBe(1);
+    expect(state.totalFound).toBe(2);
 
     dispatch({ type: 'FOUND_DIFFERENCE', index: 0, timeLeft: 3 });
     expect(state.phase).toBe('round_end');
     expect(state.score).toBe(3 * FOUND_SCORE + 8 * TIME_BONUS_PER_SECOND + 3 * TIME_BONUS_PER_SECOND);
+    expect(state.totalFound).toBe(3);
 
     dispatch({ type: 'NEXT_ROUND' });
     expect(state.phase).toBe('result');
+    expect(state.totalFound).toBe(3);
 
     dispatch({ type: 'RESET' });
     expect(state.phase).toBe('menu');

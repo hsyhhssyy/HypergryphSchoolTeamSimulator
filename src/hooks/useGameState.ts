@@ -44,6 +44,7 @@ export function createInitialState(): GameState {
     questionIndex: 0,
     currentQuestion: null,
     foundIndices: [],
+    totalFound: 0,
     score: 0,
     wrongCount: 0,
     timeLeft: 0,
@@ -69,6 +70,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         questionIndex: 0,
         currentQuestion: action.questions[0] ?? null,
         foundIndices: [],
+        totalFound: 0,
         score: 0,
         wrongCount: 0,
         timeLeft: 0,
@@ -85,6 +87,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         foundIndices,
+        totalFound: state.totalFound + 1,
         phase: completed ? 'round_end' : 'playing',
         score:
           state.score +

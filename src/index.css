@@ -24,6 +24,9 @@
   --color-ink: #3d2c1f;
   --color-ink-muted: #8a7463;
   --color-ink-on: #ffffff;
+  /* Saturated-enough ink variants for text ON success/danger tints */
+  --color-success-ink: #0b8f68;
+  --color-danger-ink: #c23a5c;
 
   /* Typography (DESIGN.md §3) */
   --font-display: 'Baloo 2', 'ZCOOL KuaiLe', system-ui, -apple-system,
@@ -232,12 +235,12 @@ button {
 
 .chip--success {
   background: color-mix(in srgb, var(--color-success) 22%, white);
-  color: #0b8f68;
+  color: var(--color-success-ink);
 }
 
 .chip--danger {
   background: color-mix(in srgb, var(--color-danger) 14%, white);
-  color: #c23a5c;
+  color: var(--color-danger-ink);
 }
 
 /* --------------------------------------------------------------------------
@@ -319,13 +322,65 @@ button {
     calc(var(--space-8) + var(--safe-area-bottom));
 }
 
-.game-hud {
+/* HUD (todo 15) — score chip + timer bar + show_count-aware found chip.
+   Timer bar fill width is a RUNTIME percentage (timeLeft/totalTime) applied
+   as an inline style — this file only carries track/fill skin tokens. */
+.hud {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
   max-width: 720px;
+}
+
+.hud__score {
+  flex-shrink: 0;
+}
+
+.hud__timer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.hud__timer-track {
+  flex: 1;
+  height: 10px;
+  min-width: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-background-alt);
+  border: 2px solid var(--color-background);
+  box-shadow: inset 0 1px 3px rgba(61, 44, 31, 0.18);
+  overflow: hidden;
+}
+
+.hud__timer-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-success));
+  transition: width var(--duration-standard) ease-out;
+}
+
+/* Low-time state — a real signal (last 25% of the bar), not decoration. */
+.hud__timer-fill--low {
+  background: linear-gradient(90deg, var(--color-danger), var(--color-primary-alt));
+}
+
+.hud__timer-label {
+  flex-shrink: 0;
+  font-size: var(--font-size-micro);
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5em;
+  text-align: right;
+}
+
+.hud__found {
+  flex-shrink: 0;
 }
 
 .game-panels {
@@ -849,6 +904,144 @@ button {
   border-radius: var(--radius-pill);
   font-size: var(--font-size-small);
   font-weight: 600;
-  color: #c23a5c;
+  color: var(--color-danger-ink);
   background: color-mix(in srgb, var(--color-danger) 14%, white);
+}
+
+/* --------------------------------------------------------------------------
+   13. Result screen (todo 15) — final score, accuracy, found/missed list.
+   The missed list ALWAYS reveals the count even when show_count=false
+   (show_count governs the HUD only — plan decision #6).
+   -------------------------------------------------------------------------- */
+.result-screen {
+  justify-content: flex-start;
+  padding-top: calc(var(--space-10) + var(--safe-area-top));
+}
+
+.result-screen__title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-display);
+  color: var(--color-ink);
+  animation: var(--anim-pop);
+}
+
+/* Score card — candy surface with a success accent edge */
+.result-card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  background: var(--color-surface);
+  border-left: 6px solid var(--color-success);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  animation: var(--anim-pop);
+}
+
+.result-card__score {
+  font-size: var(--font-size-body);
+  color: var(--color-ink);
+}
+
+.result-card__score strong {
+  font-family: var(--font-display);
+  font-size: var(--font-size-display);
+  color: var(--color-primary-alt);
+}
+
+.result-card__accuracy {
+  font-family: var(--font-display);
+  font-size: var(--font-size-h1);
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+.result-card__meta {
+  font-size: var(--font-size-small);
+  color: var(--color-ink-muted);
+}
+
+/* Found/missed list — per-difference rows, missed red-highlighted */
+.result-list {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  text-align: left;
+}
+
+.result-list__title {
+  font-size: var(--font-size-h2);
+  color: var(--color-ink);
+}
+
+.result-list__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.result-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-button);
+  box-shadow: var(--shadow-card);
+}
+
+/* Missed = red-highlighted (danger tint + edge); found stays neutral with a
+   success status text — the count is ALWAYS revealed here. */
+.result-list__item--missed {
+  background: color-mix(in srgb, var(--color-danger) 12%, white);
+  border: 2px solid var(--color-danger);
+}
+
+.result-list__idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-ink-on);
+  background: linear-gradient(180deg, var(--color-secondary), var(--color-success));
+}
+
+.result-list__item--missed .result-list__idx {
+  background: linear-gradient(180deg, var(--color-danger), var(--color-primary-alt));
+}
+
+.result-list__desc {
+  flex: 1;
+  font-size: var(--font-size-small);
+  color: var(--color-ink);
+}
+
+.result-list__status {
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-success-ink);
+}
+
+.result-list__item--missed .result-list__status {
+  color: var(--color-danger);
+}
+
+.result-replay {
+  width: 100%;
+  max-width: 420px;
+  min-height: 52px;
 }

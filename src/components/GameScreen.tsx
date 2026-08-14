@@ -33,6 +33,7 @@ import type { GamePhase, GameState } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { WRONG_TIME_PENALTY_SECONDS, type TimerControls } from '@/hooks/useTimer';
 import { resolveImageUrl } from '@/lib/api';
+import { HUD } from '@/components/HUD';
 import { ImagePanel } from '@/components/ImagePanel';
 import { QuestionDescription } from '@/components/QuestionDescription';
 
@@ -186,15 +187,16 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
 
   return (
     <main className="game-screen">
-      {/* Minimal inline HUD — full HUD component with show_count semantics is
-          todo 15; this is just the score/time row. */}
-      <header className="game-hud">
-        <span className="chip">得分 {state.score}</span>
-        <span className="chip">第 {state.questionIndex + 1} 题</span>
-        <span className="chip" data-testid="time-left">
-          剩余 {timer.timeLeft} 秒
-        </span>
-      </header>
+      {/* HUD (todo 15) — score chip, timer bar (live useTimer value, width =
+          timeLeft/totalTime), and show_count-aware found label. */}
+      <HUD
+        score={state.score}
+        timeLeft={timer.timeLeft}
+        totalTime={QUESTION_TIME_LIMIT}
+        foundCount={state.foundIndices.length}
+        totalCount={currentQuestion.differences.length}
+        showCount={currentQuestion.showCount}
+      />
 
       {/* Title + 题目描述 instruction text (todo 14) — REQUIRED per Question,
           always visible above the panels in BOTH modes. */}

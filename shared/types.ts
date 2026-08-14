@@ -93,6 +93,12 @@ export const gameStateSchema = z.object({
   /** null while no round is loaded (menu phase). */
   currentQuestion: questionSchema.nullable(),
   foundIndices: z.array(z.number().int().nonnegative()),
+  /**
+   * CUMULATIVE correct finds across the whole game (todo 15). foundIndices
+   * resets per round; totalFound never resets mid-game, so the Result screen
+   * can compute accuracy = totalFound / (totalFound + wrongCount).
+   */
+  totalFound: z.number().int().nonnegative(),
   score: z.number().int(),
   wrongCount: z.number().int().nonnegative(),
   timeLeft: z.number().int(),

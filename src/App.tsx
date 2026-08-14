@@ -7,6 +7,7 @@ import { useTimer, type TimerControls } from '@/hooks/useTimer';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { GameScreen, QUESTION_TIME_LIMIT } from '@/components/GameScreen';
 import { Menu } from '@/components/Menu';
+import { Result } from '@/components/Result';
 import { fetchQuestions } from '@/lib/api';
 
 const QUESTION_COUNT = 5;
@@ -83,19 +84,6 @@ function renderPhase(
     case 'round_end':
       return <GameScreen state={state} dispatch={dispatch} timer={timer} />;
     case 'result':
-      return (
-        <main className="screen">
-          <h2>本局结束</h2>
-          <p className="text-muted">得分 {state.score}</p>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => dispatch({ type: 'RESET' })}
-          >
-            再来一局
-          </button>
-          <span className="chip chip--danger">结果占位 · todo 15 接入结算</span>
-        </main>
-      );
+      return <Result state={state} dispatch={dispatch} />;
   }
 }

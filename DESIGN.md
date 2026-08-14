@@ -100,6 +100,18 @@ A candy-box arcade game: warm cream paper background, thick ink outlines, and sa
 ### .screen
 - Full-viewport phase wrapper (menu / playing / round_end / result): `min-height: 100dvh`, safe-area padding, centered column stack.
 
+### .hud (HUD, todo 15)
+- **Structure**: `<header class="hud">` — score chip + timer bar + found chip in one row, `max-width: 720px`.
+- **Timer bar**: track `--radius-pill`, fill width is a RUNTIME percent (`timeLeft/totalTime`, inline style — dynamic value, not a token), teal→mint gradient; `--low` variant (<25% remaining) switches to danger gradient — a real low-time signal, not decoration. Label uses `font-variant-numeric: tabular-nums` (no width jitter each second).
+- **Found chip**: `chip--success` when the count is shown; show_count=false renders the unnumbered "还有差异未找到" — gameplay concealment; the Result screen always reveals the count.
+- **Accessibility**: timer bar is a `role="progressbar"` with `aria-valuemin/max/now/text`.
+
+### .result (Result screen, todo 15)
+- **Structure**: `.screen.result-screen` — title, score card, found/missed list, 再来一局 button (all `max-width: 420px`).
+- **Score card**: white surface, `--color-success` left edge, display-font score, success-ink accuracy (accuracy = found/(found+wrong), 0 on the no-taps case — never NaN).
+- **Found/missed list**: one row per difference (numbered circle badge, type label 圆形区域/矩形区域, status 已找到/未找到). Missed rows = danger tint bg + danger border + danger status — ALWAYS shown regardless of show_count.
+- **States**: replay button = `.btn.btn--primary` → dispatch RESET.
+
 ## 6. Motion & Interaction
 
 ### Keyframes (tokens usable by any component)
