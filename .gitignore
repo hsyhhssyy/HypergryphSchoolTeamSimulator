@@ -6,5 +6,6 @@ dist/
 .vite/
 test-results/
 playwright-report/
+public/qa/
 *.log
 .DS_Store
