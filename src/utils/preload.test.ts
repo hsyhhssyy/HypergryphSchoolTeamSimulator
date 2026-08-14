@@ -36,7 +36,7 @@ describe('preloadImage', () => {
   });
 
   it('passes the resolved URL through verbatim — no encoding or rewriting', () => {
-    const url = 'http://localhost:8787/images/space%20key.png';
+    const url = 'http://localhost:8080/images/space%20key.png';
     preloadImage(url);
     expect(created).toHaveLength(1);
     expect(created[0]?.src).toBe(url);

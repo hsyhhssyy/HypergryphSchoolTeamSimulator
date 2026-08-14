@@ -508,7 +508,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
       // Fallback for running this scenario in isolation: submit via the real
       // API (same backend/R2/D1 path) so the loop remains self-sufficient.
       if (workshopSubmission === null) {
-        const response = await request.post('http://localhost:8787/api/workshop', {
+        const response = await request.post('http://localhost:8080/api/workshop', {
           multipart: {
             mode: 'spot_diff',
             title: 'E2E 独立提交',
@@ -543,7 +543,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
       // auto-approve, NO-admin-step proof. count=100 neutralizes RANDOM()
       // (far above the total spot_diff count).
       const poolResponse = await request.get(
-        'http://localhost:8787/api/questions?mode=spot_diff&source=mixed&count=100',
+        'http://localhost:8080/api/questions?mode=spot_diff&source=mixed&count=100',
       );
       expect(poolResponse.ok()).toBe(true);
       const pool = (await poolResponse.json()) as Array<{ title: string }>;

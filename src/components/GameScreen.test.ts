@@ -349,8 +349,8 @@ describe('usePreloadNextQuestion — todo 23: ONLY the next question, exactly on
     });
     expect(created).toHaveLength(2);
     expect(created.map((i) => i.src)).toEqual([
-      'http://localhost:8787/images/img-2-a.png',
-      'http://localhost:8787/images/b2',
+      'http://localhost:8080/images/img-2-a.png',
+      'http://localhost:8080/images/b2',
     ]);
 
     // Round 1 still active (unrelated re-render, e.g. score) → NO new fetches.
@@ -366,7 +366,7 @@ describe('usePreloadNextQuestion — todo 23: ONLY the next question, exactly on
       render(h(Probe, null), container as unknown as Element);
     });
     expect(created).toHaveLength(3);
-    expect(created[2]?.src).toBe('http://localhost:8787/images/img-3-a.png');
+    expect(created[2]?.src).toBe('http://localhost:8080/images/img-3-a.png');
 
     // Last question → nothing after it, no preload.
     state = makeState(questions, 2);

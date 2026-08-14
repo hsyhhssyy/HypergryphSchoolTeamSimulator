@@ -16,7 +16,7 @@ import {
   submitWorkshopQuestion,
 } from '@/lib/api';
 
-const BASE = 'http://localhost:8787';
+const BASE = 'http://localhost:8080';
 
 const question: Question = {
   id: 'q-1',

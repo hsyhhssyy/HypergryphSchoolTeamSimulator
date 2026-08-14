@@ -17,7 +17,7 @@ import type {
 } from '@shared/types';
 
 /** Worker API base. `VITE_API_URL` wins when set; local dev default otherwise. */
-const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 /** Review decisions the admin can apply to a workshop submission. */
 export type ReviewDecision = 'approved' | 'rejected';

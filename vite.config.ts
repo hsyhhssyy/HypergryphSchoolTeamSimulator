@@ -10,4 +10,10 @@ export default defineConfig({
       '@shared': path.resolve(import.meta.dirname, 'shared'),
     },
   },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: true,
+    allowedHosts: ['.hsyhhssyy.net'],
+  },
 });

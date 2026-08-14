@@ -10,7 +10,7 @@ import { defineConfig } from '@playwright/test';
  *
  * Runs against TWO local dev servers (webServer array):
  *   - vite dev  (frontend)            → http://localhost:5173
- *   - wrangler dev (Workers API/D1/R2) → http://localhost:8787
+ *   - wrangler dev (Workers API/D1/R2) → http://localhost:8080
  *
  * REQUIRED before `npx playwright test` (todo 28 MUST DO):
  *   1. Seed local D1:
@@ -59,8 +59,8 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'npx wrangler dev --port 8787',
-      url: 'http://localhost:8787/api/health',
+      command: 'npx wrangler dev --port 8080',
+      url: 'http://localhost:8080/api/health',
       reuseExistingServer: true,
       timeout: 120_000,
     },

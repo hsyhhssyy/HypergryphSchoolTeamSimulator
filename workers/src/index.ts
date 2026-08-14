@@ -11,7 +11,10 @@ const app = new Hono<{ Bindings: AppBindings }>();
 app.use(
   '*',
   cors({
-    origin: '*',
+    origin: [
+      'https://hypergryphschoolteamsimulator-e11596.coder-page.hsyhhssyy.net',
+      'http://localhost:5173',
+    ],
     allowMethods: ['GET', 'POST'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key'],
   })
