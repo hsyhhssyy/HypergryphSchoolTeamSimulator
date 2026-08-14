@@ -34,19 +34,22 @@ export type QuestionSourceQuery = z.infer<typeof questionSourceQuerySchema>;
 
 // --- Difference (image-NATIVE pixel coordinates) ------------------------
 
+/** Plan-imposed ceiling: rejects absurd coordinates (image-native px), beyond finite/positive checks. */
+const MAX_DIFFERENCE_VALUE = 100000;
+
 export const circleDifferenceSchema = z.object({
   type: z.literal('circle'),
-  x: z.number().finite().nonnegative(),
-  y: z.number().finite().nonnegative(),
-  radius: z.number().finite().positive(),
+  x: z.number().finite().nonnegative().max(MAX_DIFFERENCE_VALUE),
+  y: z.number().finite().nonnegative().max(MAX_DIFFERENCE_VALUE),
+  radius: z.number().finite().positive().max(MAX_DIFFERENCE_VALUE),
 });
 
 export const rectDifferenceSchema = z.object({
   type: z.literal('rect'),
-  x: z.number().finite().nonnegative(),
-  y: z.number().finite().nonnegative(),
-  width: z.number().finite().positive(),
-  height: z.number().finite().positive(),
+  x: z.number().finite().nonnegative().max(MAX_DIFFERENCE_VALUE),
+  y: z.number().finite().nonnegative().max(MAX_DIFFERENCE_VALUE),
+  width: z.number().finite().positive().max(MAX_DIFFERENCE_VALUE),
+  height: z.number().finite().positive().max(MAX_DIFFERENCE_VALUE),
 });
 
 export const differenceSchema = z.discriminatedUnion('type', [

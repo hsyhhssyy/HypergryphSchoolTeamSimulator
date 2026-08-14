@@ -1,12 +1,9 @@
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
+import type { AppBindings } from './bindings';
+import { workshopRoutes } from './routes/workshop';
 
-type Bindings = {
-  DB: D1Database;
-  IMAGES: R2Bucket;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: AppBindings }>();
 
 app.use(
   '*',
@@ -19,15 +16,12 @@ app.use(
 
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
-// --- Route stubs (todo 6). Real logic lands in todos 16–19. ---
+// --- Real routes (todos 16-19). Stubs below remain until their todo lands. ---
 // Bound services: D1 via c.env.DB, R2 via c.env.IMAGES.
 
-app.get('/api/questions', (c) => {
-  void c.env.DB;
-  return c.json({ error: 'not implemented' }, 501);
-});
+app.route('/', workshopRoutes);
 
-app.post('/api/workshop', (c) => {
+app.get('/api/questions', (c) => {
   void c.env.DB;
   return c.json({ error: 'not implemented' }, 501);
 });
