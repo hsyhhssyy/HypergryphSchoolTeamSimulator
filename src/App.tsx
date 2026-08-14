@@ -3,7 +3,9 @@ import type { GameState, QuestionMode, QuestionSourceQuery } from '@shared/types
 import type { JSX } from 'preact';
 import type { Dispatch } from 'preact/hooks';
 import { useGameState, type GameAction } from '@/hooks/useGameState';
+import { useTimer, type TimerControls } from '@/hooks/useTimer';
 import { AudioPlayer } from '@/components/AudioPlayer';
+import { GameScreen, QUESTION_TIME_LIMIT } from '@/components/GameScreen';
 import { Menu } from '@/components/Menu';
 import { fetchQuestions } from '@/lib/api';
 
@@ -25,6 +27,16 @@ function getOrCreateUserId(): string {
 export function App() {
   const { state, dispatch } = useGameState();
   const [startError, setStartError] = useState<string | null>(null);
+
+  /**
+   * THE timer (todo 9) lives at App level and is passed down — the reducer
+   * never owns time. onTimeUp dispatches TIME_UP; the reducer's phase guard
+   * makes a stale fire (after the round already ended) harmless.
+   */
+  const timer = useTimer({
+    initialSeconds: QUESTION_TIME_LIMIT,
+    onTimeUp: () => dispatch({ type: 'TIME_UP' }),
+  });
 
   /**
    * Menu start handler — ALL game-start logic lives here (todo 11 contract:
@@ -50,7 +62,7 @@ export function App() {
 
   return (
     <>
-      {renderPhase(state, dispatch, handleStart, startError)}
+      {renderPhase(state, dispatch, handleStart, startError, timer)}
       {/* Floating BGM player — present on every screen, never autoplays. */}
       <AudioPlayer />
     </>
@@ -62,41 +74,14 @@ function renderPhase(
   dispatch: Dispatch<GameAction>,
   handleStart: (mode: QuestionMode, source: QuestionSourceQuery) => void,
   startError: string | null,
+  timer: TimerControls,
 ): JSX.Element {
   switch (state.phase) {
     case 'menu':
       return <Menu onStart={handleStart} startError={startError} />;
     case 'playing':
-      return (
-        <main className="screen">
-          <h2>游戏中…</h2>
-          <p className="text-muted">
-            第 {state.questionIndex + 1} 题 · 得分 {state.score}
-          </p>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => dispatch({ type: 'TIME_UP' })}
-          >
-            时间到（占位）
-          </button>
-          <span className="chip">游戏占位 · todo 13/14 接入双图与区域识别</span>
-        </main>
-      );
     case 'round_end':
-      return (
-        <main className="screen">
-          <h2>本关完成！</h2>
-          <span className="chip chip--success">round_end 占位 · todo 13 自动进入下一题</span>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => dispatch({ type: 'NEXT_ROUND' })}
-          >
-            下一题（占位）
-          </button>
-        </main>
-      );
+      return <GameScreen state={state} dispatch={dispatch} timer={timer} />;
     case 'result':
       return (
         <main className="screen">
