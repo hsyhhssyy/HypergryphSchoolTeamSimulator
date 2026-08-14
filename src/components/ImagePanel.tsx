@@ -96,7 +96,15 @@ export function differenceMarkerStyle(
   }
 }
 
-export function ImagePanel({
+/**
+ * Inner content of a panel for ONE image src. Keyed by `src` from the
+ * wrapper, so a question change remounts this component SYNCHRONOUSLY:
+ * fresh 'loading' state + null geometry with no effect-based reset. An
+ * effect reset would be unsafe here — Preact 10 flushes useEffect after
+ * paint, and a cached (preloaded) image's load event can fire before that
+ * flush, clobbering the 'loaded'/'error' state set by the event handler.
+ */
+function ImagePanelInner({
   src,
   differences,
   foundIndices,
@@ -106,6 +114,7 @@ export function ImagePanel({
 }: ImagePanelProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
+  const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
 
   /** Re-measure the img element box and recompute the contain transform. */
   const syncGeometry = useCallback(() => {
@@ -123,6 +132,22 @@ export function ImagePanel({
         rect.height,
       ),
     });
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    syncGeometry();
+    setImageStatus('loaded');
+  }, [syncGeometry]);
+
+  const handleError = useCallback(() => {
+    setImageStatus('error');
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    // Remounting the <img> refetches the src; a 404 is not cacheable, so
+    // the retry always produces a fresh network attempt.
+    setImageStatus('loading');
+    setGeometry(null);
   }, []);
 
   // Keep the transform fresh across layout shifts (viewport resize, URL bar,
@@ -151,24 +176,64 @@ export function ImagePanel({
 
   return (
     <div className="image-panel">
-      {/* object-fit: contain — the actual box is measured on load, so any
-          letterboxing (consumer-constrained height) is transform-aware. */}
-      <img
-        ref={imgRef}
-        className="image-panel-img"
-        src={src}
-        alt=""
-        draggable={false}
-        onLoad={syncGeometry}
-      />
+      {/* Skeleton (CSS pulse) covers the loading img box — the img stays in
+          flow (min-height while loading) so the panel never collapses. */}
+      {imageStatus === 'loading' && (
+        <div className="image-panel-skeleton" aria-hidden="true" />
+      )}
+      {imageStatus === 'error' ? (
+        <div className="image-panel-error" role="alert">
+          <svg
+            className="image-panel-error__icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <circle cx="8.5" cy="9.5" r="1.5" />
+            <path d="M21 17l-5-5-4 4-3-3-6 6" />
+            <path d="M12 8l2 2-1.5 1.5L14 13" />
+          </svg>
+          <p className="image-panel-error__text">图片加载失败</p>
+          <button
+            type="button"
+            className="btn btn--ghost image-panel-error__retry"
+            data-testid="image-retry"
+            onClick={handleRetry}
+          >
+            重试
+          </button>
+        </div>
+      ) : (
+        <img
+          ref={imgRef}
+          className={`image-panel-img${
+            imageStatus === 'loading' ? ' image-panel-img--loading' : ''
+          }`}
+          src={src}
+          alt=""
+          draggable={false}
+          onLoad={handleLoad}
+          onError={handleError}
+        />
+      )}
       {/* Full-element overlay captures precision taps; touch-action: none is
-          the reserved .game-surface token (design system section 8). */}
-      <div
-        className="game-surface image-panel-overlay"
-        onPointerDown={handlePointerDown}
-        aria-hidden="true"
-      />
-      {geometry !== null &&
+          the reserved .game-surface token (design system section 8). Hidden
+          until the image is actually loaded — never intercepts the retry
+          button, and geometry is null anyway before load. */}
+      {imageStatus === 'loaded' && (
+        <div
+          className="game-surface image-panel-overlay"
+          onPointerDown={handlePointerDown}
+          aria-hidden="true"
+        />
+      )}
+      {imageStatus === 'loaded' &&
+        geometry !== null &&
         differences.map((difference, index) => {
           if (!foundIndices.includes(index)) return null;
           const style = differenceMarkerStyle(difference, geometry.transform);
@@ -177,6 +242,19 @@ export function ImagePanel({
             <div key={index} className="image-panel-marker" style={style} aria-hidden="true" />
           );
         })}
+    </div>
+  );
+}
+
+/**
+ * Public ImagePanel. `key={src}` on the inner component is the src-change
+ * reset mechanism (see ImagePanelInner) — no effect-based reset exists.
+ */
+export function ImagePanel(props: ImagePanelProps) {
+  const { src } = props;
+  return (
+    <div className="image-panel">
+      <ImagePanelInner key={src} {...props} />
     </div>
   );
 }

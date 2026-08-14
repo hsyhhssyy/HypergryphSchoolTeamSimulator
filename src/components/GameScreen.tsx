@@ -33,6 +33,7 @@ import type { GamePhase, GameState } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { WRONG_TIME_PENALTY_SECONDS, type TimerControls } from '@/hooks/useTimer';
 import { resolveImageUrl } from '@/lib/api';
+import { preloadImage } from '@/utils/preload';
 import { HUD } from '@/components/HUD';
 import { ImagePanel } from '@/components/ImagePanel';
 import { QuestionDescription } from '@/components/QuestionDescription';
@@ -138,8 +139,29 @@ export function useWrongClickCooldown(): {
   return { cooldown, trigger };
 }
 
+/**
+ * Todo 23: background-preload the NEXT question's images (imageA, plus
+ * imageB when present) as soon as the current question becomes active, so
+ * the next round's panels paint from cache. Keyed on `questionIndex` +
+ * the `questions` array reference (both stable across renders within a
+ * round — `questions` is replaced only by START_GAME), so it fires EXACTLY
+ * once per question advance and NEVER scans the whole set. Out-of-bounds
+ * (menu, last question, result) → no-op.
+ */
+export function usePreloadNextQuestion(state: GameState): void {
+  const { questionIndex, questions } = state;
+  useEffect(() => {
+    const next = questions[questionIndex + 1];
+    if (next === undefined) return;
+    preloadImage(resolveImageUrl(next.imageA));
+    if (next.imageB !== undefined) preloadImage(resolveImageUrl(next.imageB));
+  }, [questionIndex, questions]);
+}
+
 export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
   const { phase, currentQuestion } = state;
+
+  usePreloadNextQuestion(state);
 
   // Round-score baseline: snapshot the TOTAL score the moment a round starts,
   // so the interstitial can show this round's delta (find bonus + time bonus).

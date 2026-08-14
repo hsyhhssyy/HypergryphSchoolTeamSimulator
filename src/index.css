@@ -289,6 +289,48 @@ button {
   object-fit: contain;
 }
 
+/* Loading skeleton (todo 23): absolute cover over the img box; the img keeps
+   a min-height while loading (`.image-panel-img--loading`) so the panel never
+   collapses before the image reports its intrinsic ratio. */
+.image-panel-img--loading {
+  min-height: 240px;
+}
+
+.image-panel-skeleton {
+  position: absolute;
+  inset: 0;
+  background: var(--color-background-alt);
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+/* Error state (todo 23): broken-image icon + 重试 (≥44px .btn target). */
+.image-panel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 240px;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.image-panel-error__icon {
+  width: 48px;
+  height: 48px;
+  color: var(--color-ink-muted);
+}
+
+.image-panel-error__text {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.image-panel-error__retry {
+  min-height: 44px;
+}
+
 /* Precision tap surface — covers the FULL element (letterbox included, so a
    letterbox tap converts to out-of-bounds native coords → onMiss). */
 .image-panel-overlay {
@@ -361,7 +403,12 @@ button {
   height: 100%;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--color-secondary), var(--color-success));
-  transition: width var(--duration-standard) ease-out;
+  /* Compositor-only animation: scaleX (todo 23) — never width (layout).
+     will-change: transform promotes the constantly-animating bar to its own
+     layer. */
+  transform-origin: left;
+  will-change: transform;
+  transition: transform var(--duration-standard) ease-out;
 }
 
 /* Low-time state — a real signal (last 25% of the bar), not decoration. */
@@ -479,6 +526,8 @@ button {
   text-shadow: var(--shadow-pop);
   animation: var(--anim-wiggle), var(--anim-fade-out);
   animation-fill-mode: forwards;
+  /* Todo 23: transform/opacity-only animation — promote to its own layer. */
+  will-change: transform;
 }
 
 /* --------------------------------------------------------------------------
@@ -552,6 +601,17 @@ button {
   }
   to {
     opacity: 0;
+  }
+}
+
+/* Skeleton pulse — ImagePanel loading placeholder (todo 23) */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 

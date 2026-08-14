@@ -5,12 +5,14 @@ import {
   applyRoundTimerPhase,
   QUESTION_TIME_LIMIT,
   ROUND_END_DELAY_MS,
+  usePreloadNextQuestion,
   useRoundEndAutoAdvance,
   useWrongClickCooldown,
   WRONG_COOLDOWN_MS,
 } from '@/components/GameScreen';
 import { useTimer } from '@/hooks/useTimer';
 import type { GameAction } from '@/hooks/useGameState';
+import type { GameState, Question } from '@shared/types';
 
 /**
  * Same null-render probe as useTimer.test.ts (todo 9 pattern): preact's own
@@ -272,5 +274,118 @@ describe('useWrongClickCooldown — component-level 800ms window', () => {
       vi.advanceTimersByTime(WRONG_COOLDOWN_MS * 2);
     });
     expect(result.current.cooldown).toBe(true);
+  });
+});
+
+describe('usePreloadNextQuestion — todo 23: ONLY the next question, exactly once per advance', () => {
+  interface FakeImage {
+    src: string;
+  }
+
+  const created: FakeImage[] = [];
+
+  function FakeImage(this: FakeImage): void {
+    this.src = '';
+    created.push(this);
+  }
+
+  function makeQuestion(id: string, imageB?: string): Question {
+    return {
+      id,
+      mode: 'spot_diff',
+      title: `Q ${id}`,
+      description: 'desc',
+      imageA: `img-${id}-a.png`,
+      imageB,
+      differences: [{ type: 'circle', x: 10, y: 10, radius: 5 }],
+      showCount: true,
+      source: 'official',
+      status: 'approved',
+      likes: 0,
+      dislikes: 0,
+      createdAt: '2026-01-01T00:00:00Z',
+    };
+  }
+
+  function makeState(questions: Question[], questionIndex: number): GameState {
+    return {
+      phase: 'playing',
+      mode: 'spot_diff',
+      source: 'official',
+      questions,
+      questionIndex,
+      currentQuestion: questions[questionIndex] ?? null,
+      foundIndices: [],
+      totalFound: 0,
+      score: 0,
+      wrongCount: 0,
+      timeLeft: 0,
+    };
+  }
+
+  beforeEach(() => {
+    created.length = 0;
+    vi.stubGlobal('Image', FakeImage);
+    vi.stubGlobal('document', {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('preloads exactly the NEXT question images — never the whole set', () => {
+    const questions = [makeQuestion('1', 'b1'), makeQuestion('2', 'b2'), makeQuestion('3')];
+    const container = createContainer();
+    let state: GameState = makeState(questions, 0);
+
+    function Probe() {
+      usePreloadNextQuestion(state);
+      return null;
+    }
+
+    // Round 1 active → preload q2's imageA + imageB (2 fetches, not 6).
+    act(() => {
+      render(h(Probe, null), container as unknown as Element);
+    });
+    expect(created).toHaveLength(2);
+    expect(created.map((i) => i.src)).toEqual([
+      'http://localhost:8787/images/img-2-a.png',
+      'http://localhost:8787/images/b2',
+    ]);
+
+    // Round 1 still active (unrelated re-render, e.g. score) → NO new fetches.
+    state = { ...state, score: 100 };
+    act(() => {
+      render(h(Probe, null), container as unknown as Element);
+    });
+    expect(created).toHaveLength(2);
+
+    // Advance to q2 → exactly ONE more batch (q3 imageA only — no imageB).
+    state = makeState(questions, 1);
+    act(() => {
+      render(h(Probe, null), container as unknown as Element);
+    });
+    expect(created).toHaveLength(3);
+    expect(created[2]?.src).toBe('http://localhost:8787/images/img-3-a.png');
+
+    // Last question → nothing after it, no preload.
+    state = makeState(questions, 2);
+    act(() => {
+      render(h(Probe, null), container as unknown as Element);
+    });
+    expect(created).toHaveLength(3);
+  });
+
+  it('no-op with zero questions (menu / empty level)', () => {
+    const container = createContainer();
+    const state: GameState = makeState([], 0);
+    function Probe() {
+      usePreloadNextQuestion(state);
+      return null;
+    }
+    act(() => {
+      render(h(Probe, null), container as unknown as Element);
+    });
+    expect(created).toHaveLength(0);
   });
 });

@@ -6,9 +6,10 @@
  * the unnumbered "还有差异未找到" instead of "N/M 已找到". The Result screen
  * ALWAYS reveals the full list (gameplay concealment, not post-game).
  *
- * Timer bar width is computed by the caller (timeLeft/totalTime) and applied
- * as an inline style width — the reducer never owns the clock (todo 8), so
- * GameScreen passes the LIVE useTimer value here.
+ * Timer bar fill is applied as an inline `transform: scaleX(percent/100)`
+ * (transform-origin left) — a compositor-only animation, never `width`
+ * (layout). The reducer never owns the clock (todo 8), so GameScreen passes
+ * the LIVE useTimer value here.
  */
 import type { JSX } from 'preact';
 
@@ -59,7 +60,7 @@ export function HUD({ score, timeLeft, totalTime, foundCount, totalCount, showCo
         <div className="hud__timer-track">
           <div
             className={`hud__timer-fill${low ? ' hud__timer-fill--low' : ''}`}
-            style={{ width: `${percent}%` }}
+            style={{ transform: `scaleX(${percent / 100})` }}
             data-testid="timer-fill"
           />
         </div>
