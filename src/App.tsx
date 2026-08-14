@@ -1,54 +1,48 @@
-import { useReducer } from 'preact/hooks';
-import type { GamePhase } from '@shared/types';
+import type { GameState, Question } from '@shared/types';
+import type { JSX } from 'preact';
+import type { Dispatch } from 'preact/hooks';
+import { useGameState, type GameAction } from '@/hooks/useGameState';
+import { AudioPlayer } from '@/components/AudioPlayer';
 
 /**
- * Minimal slice of the canonical GameState (shared/types.ts). Todo 8 grows
- * it into the full shape; phase + action vocabulary below are the frozen
- * skeleton that useGameState must stay consistent with.
+ * Placeholder round data so the menu's 开始游戏 button exercises the real
+ * state machine until todo 11 wires the menu to the API client.
  */
-interface GameState {
-  phase: GamePhase;
-  score: number;
-  questionIndex: number;
-  foundIndices: number[];
-  wrongCount: number;
-}
-
-const initialState: GameState = {
-  phase: 'menu',
-  score: 0,
-  questionIndex: 0,
-  foundIndices: [],
-  wrongCount: 0,
-};
-
-/**
- * ONE game-level reducer for the whole app — App renders screens from
- * `phase`. Actions are stubs; the full transitions (FOUND_DIFFERENCE,
- * WRONG_CLICK, guarded TIME_UP/NEXT_ROUND, score math) arrive in todo 8.
- */
-type GameAction =
-  | { type: 'START_GAME' }
-  | { type: 'TIME_UP' }
-  | { type: 'NEXT_ROUND' }
-  | { type: 'RESET' };
-
-function gameReducer(state: GameState, action: GameAction): GameState {
-  switch (action.type) {
-    case 'START_GAME':
-      return { ...initialState, phase: 'playing' };
-    case 'TIME_UP':
-      return { ...state, phase: 'round_end' };
-    case 'NEXT_ROUND':
-      return { ...state, phase: 'result' };
-    case 'RESET':
-      return initialState;
-  }
-}
+const PLACEHOLDER_QUESTIONS: Question[] = [
+  {
+    id: 'placeholder-1',
+    mode: 'spot_diff',
+    title: '占位题目',
+    description: '找出两图的不同之处（占位数据，todo 11 接入真实题目）',
+    imageA: 'https://picsum.photos/seed/a/800/600',
+    imageB: 'https://picsum.photos/seed/b/800/600',
+    differences: [
+      { type: 'circle', x: 120, y: 80, radius: 25 },
+      { type: 'rect', x: 300, y: 150, width: 40, height: 30 },
+      { type: 'circle', x: 600, y: 400, radius: 20 },
+    ],
+    showCount: true,
+    source: 'official',
+    status: 'approved',
+    likes: 0,
+    dislikes: 0,
+    createdAt: '2026-08-14T00:00:00Z',
+  },
+];
 
 export function App() {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const { state, dispatch } = useGameState();
 
+  return (
+    <>
+      {renderPhase(state, dispatch)}
+      {/* Floating BGM player — present on every screen, never autoplays. */}
+      <AudioPlayer />
+    </>
+  );
+}
+
+function renderPhase(state: GameState, dispatch: Dispatch<GameAction>): JSX.Element {
   switch (state.phase) {
     case 'menu':
       return (
@@ -62,7 +56,14 @@ export function App() {
           <button
             type="button"
             className="btn btn--primary"
-            onClick={() => dispatch({ type: 'START_GAME' })}
+            onClick={() =>
+              dispatch({
+                type: 'START_GAME',
+                mode: 'spot_diff',
+                source: 'official',
+                questions: PLACEHOLDER_QUESTIONS,
+              })
+            }
           >
             开始游戏
           </button>
