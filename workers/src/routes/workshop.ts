@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { apiSubmitBodySchema, type QuestionStatus } from '../../../shared/types';
 import type { AppBindings } from '../bindings';
+import { moderationRoutes } from './moderation';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const RATE_LIMIT_MAX_PER_HOUR = 5;
@@ -196,3 +197,4 @@ workshopRoutes.post('/api/workshop', async (c) => {
     201
   );
 });
+workshopRoutes.route('/', moderationRoutes);
