@@ -1,0 +1,34 @@
+{
+  "name": "h5-spot-diff-game",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "dev:api": "wrangler dev",
+    "typecheck:api": "tsc --noEmit -p workers",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.11.0",
+    "hono": "^4.13.2",
+    "preact": "^10.29.8",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260814.1",
+    "@playwright/test": "^1.62.1",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^22.20.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.123.0"
+  }
+}

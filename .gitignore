@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.omo/
+.vite/
+test-results/
+playwright-report/
+*.log
+.DS_Store

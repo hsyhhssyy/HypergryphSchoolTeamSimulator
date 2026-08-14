@@ -1,0 +1,14 @@
+name = "h5-spot-diff-game"
+main = "workers/src/index.ts"
+compatibility_date = "2026-08-14"
+
+# D1 database — placeholder database_id, finalized by todo 25
+[[d1_databases]]
+binding = "DB"
+database_name = "h5-spot-diff-game"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# R2 bucket for question images — placeholder bucket, finalized by todo 25
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "h5-spot-diff-game-images"
