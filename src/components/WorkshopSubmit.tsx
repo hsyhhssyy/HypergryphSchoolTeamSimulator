@@ -30,6 +30,7 @@ import {
 import { differenceMarkerStyle } from '@/components/ImagePanel';
 import { MODE_OPTIONS } from '@/components/Menu';
 import { submitWorkshopQuestion } from '@/lib/api';
+import { friendlyErrorMessage } from '@/lib/friendlyError';
 import { getOrCreateUserId } from '@/lib/userId';
 
 // --- Pure validation & geometry helpers (exported for unit tests) --------
@@ -441,10 +442,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
       .then(({ id }) => showToast('success', `投稿成功！题目 ID：${id}`))
       .catch((err: unknown) => {
         console.error('投稿失败:', err);
-        showToast(
-          'error',
-          err instanceof Error && err.message.length > 0 ? err.message : '投稿失败，请重试',
-        );
+        showToast('error', friendlyErrorMessage(err, '上传失败，请重试'));
       })
       .finally(() => setSubmitting(false));
   };

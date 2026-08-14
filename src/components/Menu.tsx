@@ -179,9 +179,23 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
       </button>
 
       {startError !== null && (
-        <p role="alert" className="menu__error">
-          {startError}
-        </p>
+        <div className="menu__error-block">
+          <p role="alert" className="menu__error">
+            {startError}
+          </p>
+          {/* Retry re-runs onStart with the CURRENT selections — the fetch
+              is owned by App.handleStart; Menu stays presentational. */}
+          <button
+            type="button"
+            className="btn btn--ghost menu__retry"
+            data-testid="menu-retry"
+            onClick={() => {
+              if (mode !== null) onStart(mode, source);
+            }}
+          >
+            重试
+          </button>
+        </div>
       )}
     </main>
   );

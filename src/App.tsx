@@ -12,7 +12,9 @@ import { Menu } from '@/components/Menu';
 import { Result } from '@/components/Result';
 import { WorkshopSubmit } from '@/components/WorkshopSubmit';
 import { fetchQuestions } from '@/lib/api';
+import { friendlyErrorMessage } from '@/lib/friendlyError';
 import { getOrCreateUserId } from '@/lib/userId';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 const QUESTION_COUNT = 5;
 
@@ -29,6 +31,8 @@ export function App() {
   const { state, dispatch } = useGameState();
   const [startError, setStartError] = useState<string | null>(null);
   const [view, setView] = useState<View>('game');
+  /** Offline detection (todo 24) — banner renders while navigator is offline. */
+  const online = useOnlineStatus();
 
   /** Hidden admin entry: hold the Menu title for 3s (todo 22). */
   const titleLongPress = useLongPress(() => setView('admin'));
@@ -61,12 +65,15 @@ export function App() {
       })
       .catch((err: unknown) => {
         console.error('加载题目失败:', err);
-        setStartError(err instanceof Error ? err.message : '加载题目失败，请检查网络后重试');
+        setStartError(friendlyErrorMessage(err, '加载失败，请重试'));
       });
   };
 
   return (
     <>
+      {/* Offline banner (todo 24) — a real signal: every fetch will fail
+          while offline. Dismisses automatically on the `online` event. */}
+      {!online && <OfflineBanner />}
       {view === 'admin' ? (
         <AdminReview onBack={() => setView('game')} />
       ) : view === 'workshop' ? (
@@ -113,4 +120,36 @@ function renderPhase(
     case 'result':
       return <Result state={state} dispatch={dispatch} />;
   }
+}
+
+/**
+ * Offline banner — fixed pill at the top of every screen while
+ * `navigator.onLine === false`. role="alert" announces the state change to
+ * assistive tech; the banner disappears on the `online` event (no manual
+ * dismiss needed — the reconnect IS the dismissal).
+ */
+function OfflineBanner() {
+  return (
+    <div className="offline-banner" role="alert">
+      <svg
+        className="offline-banner__icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M1 1l22 22" />
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <path d="M12 20h.01" />
+      </svg>
+      网络连接已断开
+    </div>
+  );
 }

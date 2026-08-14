@@ -16,6 +16,7 @@ import type { Dispatch } from 'preact/hooks';
 import type { GameState, Question } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { rateQuestion } from '@/lib/api';
+import { friendlyErrorMessage } from '@/lib/friendlyError';
 
 /** Same anonymous-user key App.tsx writes on game start (todo 11). */
 const USER_ID_KEY = 'h5-spot-diff.userId';
@@ -87,9 +88,10 @@ export function Result({ state, dispatch }: ResultProps): JSX.Element {
       .catch((err: unknown) => {
         // Failure → revert the optimistic vote and RE-ENABLE both buttons
         // (retry possible); surface a friendly message, never raw JSON.
+        console.error('评价失败:', err);
         setVote(null);
         setPending(false);
-        setRateError(err instanceof Error ? err.message : '评价失败，请重试');
+        setRateError(friendlyErrorMessage(err, '评价失败，请重试'));
       });
   };
 

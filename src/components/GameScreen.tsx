@@ -203,7 +203,26 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
     triggerCooldown();
   }, [dispatch, timer, triggerCooldown]);
 
-  if (currentQuestion === null) return null;
+  if (currentQuestion === null) {
+    // Defensive empty state (todo 24): the reducer rejects START_GAME with an
+    // empty question list, so this is only reachable through a logic bug —
+    // still, a blank screen is never acceptable.
+    return (
+      <main className="game-screen">
+        <div className="game-empty" role="status">
+          <p className="game-empty__text">暂无题目</p>
+          <button
+            type="button"
+            className="btn btn--primary game-empty__back"
+            data-testid="game-empty-back"
+            onClick={() => dispatch({ type: 'RESET' })}
+          >
+            返回菜单
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   const panelsDisabled = cooldown || phase !== 'playing';
 

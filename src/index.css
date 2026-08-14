@@ -1692,3 +1692,99 @@ button {
 .admin-load-more {
   width: 100%;
 }
+
+/* --------------------------------------------------------------------------
+   16. Error & empty states (todo 24) — offline banner, error-boundary
+   fallback, menu retry, game empty state. Tokens only; no raw hex/px.
+   -------------------------------------------------------------------------- */
+
+/* Offline banner — fixed top pill, appears on the `offline` event, gone on
+   `online`. Sits below the BGM player (z 100) and the toast (z 200). */
+.offline-banner {
+  position: fixed;
+  top: calc(var(--safe-area-top) + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100vw - 2 * var(--space-6));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-ink-on);
+  background: linear-gradient(180deg, var(--color-danger), var(--color-primary-alt));
+  box-shadow: var(--shadow-pop);
+  animation: var(--anim-pop);
+}
+
+.offline-banner__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ErrorBoundary fallback — full-screen friendly message + reload button.
+   Rendered only after a render crash; never contains error details. */
+.error-fallback {
+  gap: var(--space-4);
+}
+
+.error-fallback__title {
+  font-size: var(--font-size-display);
+  color: var(--color-ink);
+  animation: var(--anim-pop);
+}
+
+.error-fallback__text {
+  font-size: var(--font-size-body);
+  color: var(--color-ink-muted);
+}
+
+.error-fallback__reload {
+  min-width: 160px;
+  min-height: 52px;
+}
+
+/* Menu error block — error pill + retry button side by side */
+.menu__error-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 420px;
+}
+
+.menu__retry {
+  min-height: 44px;
+  min-width: 120px;
+}
+
+/* GameScreen defensive empty state (0 questions) */
+.game-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  margin: auto 0;
+  padding: var(--space-8) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.game-empty__text {
+  font-family: var(--font-display);
+  font-size: var(--font-size-h1);
+  font-weight: 700;
+  color: var(--color-ink-muted);
+}
+
+.game-empty__back {
+  min-height: 52px;
+  min-width: 160px;
+}
