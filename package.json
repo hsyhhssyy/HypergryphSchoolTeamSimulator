@@ -11,6 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "dev:api": "wrangler dev",
+    "deploy:frontend": "vite build && wrangler pages deploy dist",
+    "deploy:api": "wrangler deploy",
     "typecheck:api": "tsc --noEmit -p workers",
     "test": "vitest run",
     "test:e2e": "playwright test"

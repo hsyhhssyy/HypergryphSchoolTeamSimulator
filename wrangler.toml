@@ -2,13 +2,22 @@ name = "h5-spot-diff-game"
 main = "workers/src/index.ts"
 compatibility_date = "2026-08-14"
 
-# D1 database — placeholder database_id, finalized by todo 25
+# Non-secret feature flag: 'true' (default) auto-approves workshop submissions.
+# Set to "false" to enable manual moderation via /api/workshop/pending + /review.
+# NOTE: local `wrangler dev` reads `.dev.vars` which OVERRIDES this value.
+# ADMIN_KEY is a SECRET — set it with `npx wrangler secret put ADMIN_KEY`, never here.
+[vars]
+AUTO_APPROVE_WORKSHOP = "true"
+
+# D1 database — replace database_id with the real id from `wrangler d1 create`
+# (see DEPLOYMENT.md; the placeholder is invalid for remote deploy)
 [[d1_databases]]
 binding = "DB"
 database_name = "h5-spot-diff-game"
 database_id = "00000000-0000-0000-0000-000000000000"
 
-# R2 bucket for question images — placeholder bucket, finalized by todo 25
+# R2 bucket for question images — bucket name fixed; NOT public.
+# The Workers API (/images/:filename) is the ONLY public image surface.
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "h5-spot-diff-game-images"

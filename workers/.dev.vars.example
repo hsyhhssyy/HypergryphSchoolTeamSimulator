@@ -1,0 +1,13 @@
+# Local development variables (wrangler dev only — never used in production).
+# Copy this file to the repo root as `.dev.vars` (gitignored, never committed)
+# and fill in a local test value for local admin-route testing.
+#
+# REAL production secrets must NEVER go here and NEVER be committed —
+# set them in production with `npx wrangler secret put ADMIN_KEY`.
+
+ADMIN_KEY=
+
+# Optional: override AUTO_APPROVE_WORKSHOP for local testing.
+# "false" enables manual moderation (submit → pending → /api/workshop/review).
+# NOTE: .dev.vars OVERRIDES the [vars] value in wrangler.toml.
+#AUTO_APPROVE_WORKSHOP=false
