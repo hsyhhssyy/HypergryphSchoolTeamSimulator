@@ -4,6 +4,8 @@ import type { JSX } from 'preact';
 import type { Dispatch } from 'preact/hooks';
 import { useGameState, type GameAction } from '@/hooks/useGameState';
 import { useTimer, type TimerControls } from '@/hooks/useTimer';
+import { useLongPress, type LongPressHandlers } from '@/hooks/useLongPress';
+import { AdminReview } from '@/components/AdminReview';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { GameScreen, QUESTION_TIME_LIMIT } from '@/components/GameScreen';
 import { Menu } from '@/components/Menu';
@@ -15,17 +17,21 @@ import { getOrCreateUserId } from '@/lib/userId';
 const QUESTION_COUNT = 5;
 
 /**
- * Top-level screen switching INDEPENDENT of GamePhase (todo 20). 'game'
+ * Top-level screen switching INDEPENDENT of GamePhase (todo 20/22). 'game'
  * renders the phase-driven game flow; 'workshop' overlays the submission
- * form (todo 22 extends this with 'admin'). Game state is untouched while
- * the view is 'workshop' — returning to 'game' resumes where it left off.
+ * form; 'admin' (hidden 3s long-press on the Menu title) opens the optional
+ * moderation page. Game state is untouched while the view is not 'game' —
+ * returning to 'game' resumes where it left off.
  */
-type View = 'game' | 'workshop';
+type View = 'game' | 'workshop' | 'admin';
 
 export function App() {
   const { state, dispatch } = useGameState();
   const [startError, setStartError] = useState<string | null>(null);
   const [view, setView] = useState<View>('game');
+
+  /** Hidden admin entry: hold the Menu title for 3s (todo 22). */
+  const titleLongPress = useLongPress(() => setView('admin'));
 
   /**
    * THE timer (todo 9) lives at App level and is passed down — the reducer
@@ -61,10 +67,20 @@ export function App() {
 
   return (
     <>
-      {view === 'workshop' ? (
+      {view === 'admin' ? (
+        <AdminReview onBack={() => setView('game')} />
+      ) : view === 'workshop' ? (
         <WorkshopSubmit onBack={() => setView('game')} />
       ) : (
-        renderPhase(state, dispatch, handleStart, startError, timer, () => setView('workshop'))
+        renderPhase(
+          state,
+          dispatch,
+          handleStart,
+          startError,
+          timer,
+          () => setView('workshop'),
+          titleLongPress,
+        )
       )}
       {/* Floating BGM player — present on every screen, never autoplays. */}
       <AudioPlayer />
@@ -79,10 +95,18 @@ function renderPhase(
   startError: string | null,
   timer: TimerControls,
   onOpenWorkshop: () => void,
+  titleLongPress: LongPressHandlers,
 ): JSX.Element {
   switch (state.phase) {
     case 'menu':
-      return <Menu onStart={handleStart} startError={startError} onOpenWorkshop={onOpenWorkshop} />;
+      return (
+        <Menu
+          onStart={handleStart}
+          startError={startError}
+          onOpenWorkshop={onOpenWorkshop}
+          titleLongPress={titleLongPress}
+        />
+      );
     case 'playing':
     case 'round_end':
       return <GameScreen state={state} dispatch={dispatch} timer={timer} />;

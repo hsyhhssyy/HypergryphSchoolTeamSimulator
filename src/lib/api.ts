@@ -22,6 +22,26 @@ const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8787'
 /** Review decisions the admin can apply to a workshop submission. */
 export type ReviewDecision = 'approved' | 'rejected';
 
+/**
+ * API client error carrying the HTTP status — callers branch on it (e.g. the
+ * admin gate maps 403 → 无权限). Message stays the human-readable server
+ * message, so `instanceof Error` consumers are unaffected.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+/** True when the failure is an HTTP 403 (invalid admin key). */
+export function isForbiddenError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403;
+}
+
 /** One page of pending workshop submissions (cursor pagination, todo 19). */
 export interface PendingSubmissionsPage {
   items: Question[];
@@ -44,10 +64,10 @@ async function readErrorMessage(res: Response): Promise<string> {
   return `HTTP ${res.status}`;
 }
 
-/** fetch + ok-check + JSON decode. Non-2xx → Error(message from JSON). */
+/** fetch + ok-check + JSON decode. Non-2xx → ApiError(message, status). */
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init);
-  if (!res.ok) throw new Error(await readErrorMessage(res));
+  if (!res.ok) throw new ApiError(await readErrorMessage(res), res.status);
   return (await res.json()) as T;
 }
 
@@ -93,11 +113,18 @@ export async function rateQuestion(
   });
 }
 
-/** List pending submissions for the admin review page. Admin-key auth via header. */
+/**
+ * List pending submissions for the admin review page. Admin-key auth via
+ * header; `cursor` (optional) fetches the next page of the keyset.
+ */
 export async function fetchPendingSubmissions(
   adminKey: string,
+  cursor?: string,
 ): Promise<PendingSubmissionsPage> {
-  return requestJson<PendingSubmissionsPage>('/api/workshop/pending', {
+  const params = new URLSearchParams();
+  if (cursor !== undefined) params.set('cursor', cursor);
+  const query = params.size > 0 ? `?${params.toString()}` : '';
+  return requestJson<PendingSubmissionsPage>(`/api/workshop/pending${query}`, {
     headers: { 'X-Admin-Key': adminKey },
   });
 }
@@ -136,6 +163,6 @@ export async function fetchAdminImage(
   const res = await fetch(`${API_BASE}/images/${filename}`, {
     headers: { 'X-Admin-Key': adminKey },
   });
-  if (!res.ok) throw new Error(await readErrorMessage(res));
+  if (!res.ok) throw new ApiError(await readErrorMessage(res), res.status);
   return res.blob();
 }

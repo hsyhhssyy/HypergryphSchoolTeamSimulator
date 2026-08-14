@@ -5,9 +5,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Question } from '@shared/types';
 import {
+  ApiError,
   fetchAdminImage,
   fetchPendingSubmissions,
   fetchQuestions,
+  isForbiddenError,
   rateQuestion,
   resolveImageUrl,
   reviewSubmission,
@@ -163,6 +165,32 @@ describe('fetchPendingSubmissions', () => {
     await expect(fetchPendingSubmissions('wrong-key')).rejects.toThrow(
       'invalid admin key',
     );
+  });
+
+  it('throws an ApiError carrying the HTTP status (403 → 无权限 mapping)', async () => {
+    // Given a 403
+    stubFetch({ status: 403, body: { error: 'invalid admin key' } });
+    // When
+    const err: unknown = await fetchPendingSubmissions('wrong-key').catch((e: unknown) => e);
+    // Then
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(403);
+    expect((err as ApiError).message).toBe('invalid admin key');
+    expect(isForbiddenError(err)).toBe(true);
+  });
+
+  it('appends the keyset cursor for the next page and keeps the key out of the URL', async () => {
+    // Given a base64(created_at|id) cursor and a pending page
+    const cursor = btoa('2026-08-14 05:30:00|q-9');
+    const fetchMock = stubFetch({ status: 200, body: { items: [], nextCursor: null } });
+    // When
+    await fetchPendingSubmissions('admin-secret-123', cursor);
+    // Then
+    const { url, init } = firstCall(fetchMock);
+    expect(url).toBe(`${BASE}/api/workshop/pending?cursor=${encodeURIComponent(cursor)}`);
+    const headers = new Headers(init.headers);
+    expect(headers.get('X-Admin-Key')).toBe('admin-secret-123');
+    expect(url).not.toContain('admin-secret-123');
   });
 });
 

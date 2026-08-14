@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { QuestionMode, QuestionSourceQuery } from '@shared/types';
+import type { LongPressHandlers } from '@/hooks/useLongPress';
 
 /**
  * Menu screen (todo 11) — PURELY PRESENTATIONAL.
@@ -16,6 +17,8 @@ export interface MenuProps {
   startError?: string | null;
   /** Switch the App-level view to the workshop submission form (todo 20). */
   onOpenWorkshop: () => void;
+  /** Long-press gesture handlers for the app title (hidden admin entry). */
+  titleLongPress: LongPressHandlers;
 }
 
 export interface ModeOption {
@@ -79,14 +82,18 @@ const MODE_ICONS: Record<QuestionMode, () => JSX.Element> = {
   find_area: FindAreaIcon,
 };
 
-export function Menu({ onStart, startError = null, onOpenWorkshop }: MenuProps) {
+export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPress }: MenuProps) {
   const [mode, setMode] = useState<QuestionMode | null>(null);
   const [source, setSource] = useState<QuestionSourceQuery>('official');
 
   return (
     <main className="screen menu">
       <header className="menu__hero">
-        <h1 className="font-display" style={{ fontSize: 'var(--font-size-display)' }}>
+        <h1
+          className="font-display"
+          style={{ fontSize: 'var(--font-size-display)' }}
+          {...titleLongPress}
+        >
           找不同
         </h1>
         <p className="text-muted">双图找茬 · 区域识别 · 答题小游戏</p>
