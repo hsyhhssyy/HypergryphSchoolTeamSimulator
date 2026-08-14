@@ -34,6 +34,7 @@ import type { GameAction } from '@/hooks/useGameState';
 import { WRONG_TIME_PENALTY_SECONDS, type TimerControls } from '@/hooks/useTimer';
 import { resolveImageUrl } from '@/lib/api';
 import { preloadImage } from '@/utils/preload';
+import { Confetti } from '@/components/Confetti';
 import { HUD } from '@/components/HUD';
 import { ImagePanel } from '@/components/ImagePanel';
 import { QuestionDescription } from '@/components/QuestionDescription';
@@ -277,6 +278,9 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
           is paused (useRoundTimer) and NEXT_ROUND fires in ~1500ms. */}
       {phase === 'round_end' && (
         <div className="round-end" role="status" aria-live="polite">
+          {/* Todo 27: celebratory confetti behind the text — decorative
+              (aria-hidden), transform/opacity only. */}
+          <Confetti />
           <h1 className="round-end__title">本关完成</h1>
           <p className="round-end__score">
             +{Math.max(0, state.score - roundStartScoreRef.current)} 分

@@ -17,6 +17,7 @@ import type { GameState, Question } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { rateQuestion } from '@/lib/api';
 import { friendlyErrorMessage } from '@/lib/friendlyError';
+import { Confetti } from '@/components/Confetti';
 
 /** Same anonymous-user key App.tsx writes on game start (todo 11). */
 const USER_ID_KEY = 'h5-spot-diff.userId';
@@ -97,6 +98,8 @@ export function Result({ state, dispatch }: ResultProps): JSX.Element {
 
   return (
     <main className="screen result-screen">
+      {/* Todo 27: end-of-game celebration — decorative, aria-hidden. */}
+      <Confetti />
       <h1 className="result-screen__title">本局结束</h1>
 
       <div className="result-card">

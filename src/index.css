@@ -207,14 +207,32 @@ button {
   box-shadow: none;
 }
 
+/* Todo 27: playful desktop hover lift (mouse-only — never affects touch).
+   transform-only, so it rides the existing .btn transition. Press state
+   (:active, below) still wins because it comes later in the cascade. */
+@media (hover: hover) {
+  .btn:hover:not(:active):not(:disabled) {
+    transform: translateY(-1px) scale(1.02);
+  }
+}
+
 /* --------------------------------------------------------------------------
-   5. Cards
+    5. Cards
    -------------------------------------------------------------------------- */
 .card {
   background: var(--color-surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
+  /* Todo 27: DESIGN.md §5 card motion — entry pop, staggered between
+     sibling cards via `.card + .card` (backwards fill hides each card until
+     its turn; transform/opacity only, reduced-motion nuked globally). */
+  animation: var(--anim-pop);
+  animation-fill-mode: backwards;
+}
+
+.card + .card {
+  animation-delay: 70ms;
 }
 
 /* --------------------------------------------------------------------------
@@ -475,7 +493,10 @@ button {
 }
 
 /* round_end interstitial — covers the still-mounted panels (timer paused,
-   NEXT_ROUND auto-dispatch in ~1500ms, todo 13). */
+   NEXT_ROUND auto-dispatch in ~1500ms, todo 13). Todo 27: the overlay pops
+   in, then fade-out (300ms @1200ms, forwards) hands the stage back to the
+   next round EXACTLY when the 1500ms NEXT_ROUND fires — a smooth exit, not
+   a cut. Transform/opacity only. */
 .round-end {
   position: absolute;
   inset: 0;
@@ -486,7 +507,7 @@ button {
   gap: var(--space-3);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   z-index: 10;
-  animation: var(--anim-pop);
+  animation: var(--anim-pop), fade-out 300ms ease-out 1200ms forwards;
 }
 
 .round-end__title {
@@ -495,10 +516,16 @@ button {
   color: var(--color-ink);
 }
 
+/* Todo 27: the score number bounces in after the title (backwards fill
+   holds the scale(0.3) start frame during the delay — no flash of the
+   unscaled text). */
 .round-end__score {
   font-family: var(--font-display);
   font-size: var(--font-size-h2);
   color: var(--color-success);
+  animation: var(--anim-bounce);
+  animation-delay: 150ms;
+  animation-fill-mode: backwards;
 }
 
 .round-end__total {
@@ -624,6 +651,54 @@ button {
   border-radius: 3px;
   animation: var(--anim-confetti);
   pointer-events: none;
+}
+
+/* Confetti burst container (todo 27) — covers the celebrating surface,
+   clips the falling bits at its edge, never intercepts taps. z-index -1
+   keeps the bits BEHIND the round-end/result text (painted after the
+   overlay's background, before its in-flow content). */
+.confetti-burst {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Screen transition (todo 27) — fade + slide entrance on every phase/view
+   change (menu → game → result, workshop/admin open/close). Each screen's
+   <main> REMOUNTS on the change, so a mount animation IS the transition.
+   translateY(-12px) slides down-in from above (negative Y can't create a
+   bottom scrollbar on a 100dvh screen). Reduced-motion: collapsed by the
+   global media block. NOTE: .game-screen gets FADE ONLY — a slide would
+   shift getBoundingClientRect during the window where a cached image can
+   load, baking a stale 12px-offset tap geometry for the whole round. */
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes screen-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.screen {
+  animation: screen-in var(--duration-standard) ease-out;
+}
+
+.game-screen {
+  animation: screen-fade var(--duration-standard) ease-out;
 }
 
 /* --------------------------------------------------------------------------
@@ -938,7 +1013,8 @@ button {
   user-select: none;
   transition: background var(--duration-micro) ease-out,
     color var(--duration-micro) ease-out,
-    box-shadow var(--duration-micro) ease-out;
+    box-shadow var(--duration-micro) ease-out,
+    transform var(--duration-micro) var(--ease-bounce);
 }
 
 .source-toggle__option:active:not(.source-toggle--active) {
@@ -976,6 +1052,8 @@ button {
 .result-screen {
   justify-content: flex-start;
   padding-top: calc(var(--space-10) + var(--safe-area-top));
+  /* Todo 27: scoping box for the celebration confetti burst (absolute child). */
+  position: relative;
 }
 
 .result-screen__title {
@@ -1055,7 +1133,18 @@ button {
   background: var(--color-surface);
   border-radius: var(--radius-button);
   box-shadow: var(--shadow-card);
+  /* Todo 27: staggered entry pop down the list (backwards fill = hidden
+     until its turn). nth-child(n+7) caps the wait for long lists. */
+  animation: var(--anim-pop);
+  animation-fill-mode: backwards;
 }
+
+.result-list__item:nth-child(2) { animation-delay: 45ms; }
+.result-list__item:nth-child(3) { animation-delay: 90ms; }
+.result-list__item:nth-child(4) { animation-delay: 135ms; }
+.result-list__item:nth-child(5) { animation-delay: 180ms; }
+.result-list__item:nth-child(6) { animation-delay: 225ms; }
+.result-list__item:nth-child(n + 7) { animation-delay: 270ms; }
 
 /* Missed = red-highlighted (danger tint + edge); found stays neutral with a
    success status text — the count is ALWAYS revealed here. */
@@ -1610,6 +1699,8 @@ button {
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
+  /* Todo 27: card entry pop when the pending list loads. */
+  animation: var(--anim-pop);
 }
 
 .admin-thumb {
