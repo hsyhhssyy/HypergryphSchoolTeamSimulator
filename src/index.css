@@ -1045,3 +1045,109 @@ button {
   max-width: 420px;
   min-height: 52px;
 }
+
+/* Rating — workshop-only 👍/👎 (todo 21). Rendered ONLY for approved workshop
+   questions with a known anonymous user id (gate lives in Result.tsx). */
+.result-rating {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.result-rating__title {
+  font-size: var(--font-size-h2);
+  color: var(--color-ink);
+}
+
+.result-rating__buttons {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* Candy vote buttons — gradients reuse the system .btn--secondary/.btn--danger
+   stops (like = success teal, dislike = danger pink); no new hex. */
+.result-rating__btn {
+  min-height: 52px;
+  min-width: 110px;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid transparent;
+  border-radius: var(--radius-button);
+  font-family: var(--font-display);
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+  color: var(--color-ink-on);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: transform var(--duration-micro) var(--ease-bounce),
+    border-color var(--duration-micro) ease-out,
+    box-shadow var(--duration-micro) ease-out,
+    filter var(--duration-micro) ease-out;
+}
+
+.result-rating__btn--like {
+  background: linear-gradient(180deg, var(--color-secondary), #3bb5ac);
+  box-shadow: var(--shadow-card);
+}
+
+.result-rating__btn--dislike {
+  background: linear-gradient(180deg, var(--color-danger), #d63a62);
+  box-shadow: var(--shadow-card);
+}
+
+/* Chosen vote — ink outline + lift + candy shadow */
+.result-rating__btn--active {
+  border-color: var(--color-ink);
+  transform: scale(1.06);
+  box-shadow: var(--shadow-candy);
+}
+
+.result-rating__btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.result-rating__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+  box-shadow: none;
+}
+
+.result-rating__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: var(--font-size-micro);
+  font-weight: 700;
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+
+.result-rating__status {
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-success-ink);
+  animation: var(--anim-pop);
+}
+
+/* Error pill — same recipe as .menu__error (tokens only); re-enables buttons */
+.result-rating__error {
+  max-width: 100%;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-danger-ink);
+  background: color-mix(in srgb, var(--color-danger) 14%, white);
+  animation: var(--anim-pop);
+}

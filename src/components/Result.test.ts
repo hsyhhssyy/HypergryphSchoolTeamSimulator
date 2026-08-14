@@ -1,5 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { computeAccuracy } from '@/components/Result';
+import { computeAccuracy, isRatableQuestion } from '@/components/Result';
+
+describe('isRatableQuestion — workshop+approved+user-id gate (todo 21)', () => {
+  const workshopApproved = { source: 'workshop', status: 'approved' } as const;
+
+  it('approved workshop question with a user id → true', () => {
+    expect(isRatableQuestion(workshopApproved, 'user-1')).toBe(true);
+  });
+
+  it('official question → false (never rated)', () => {
+    expect(isRatableQuestion({ source: 'official', status: 'approved' }, 'user-1')).toBe(false);
+  });
+
+  it('pending workshop question → false', () => {
+    expect(isRatableQuestion({ source: 'workshop', status: 'pending' }, 'user-1')).toBe(false);
+  });
+
+  it('rejected workshop question → false', () => {
+    expect(isRatableQuestion({ source: 'workshop', status: 'rejected' }, 'user-1')).toBe(false);
+  });
+
+  it('missing user id → false (no rating without identity)', () => {
+    expect(isRatableQuestion(workshopApproved, null)).toBe(false);
+  });
+
+  it('no current question → false', () => {
+    expect(isRatableQuestion(null, 'user-1')).toBe(false);
+  });
+
+  it('null question AND null user id → false', () => {
+    expect(isRatableQuestion(null, null)).toBe(false);
+  });
+});
+
 
 describe('computeAccuracy — found / (found + wrong), 0-case → 0, never NaN', () => {
   it('perfect game: 5 found, 0 wrong → 100%', () => {
