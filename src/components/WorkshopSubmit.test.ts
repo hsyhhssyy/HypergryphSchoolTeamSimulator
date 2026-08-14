@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Difference } from '@shared/types';
+import { computeContainTransform, toNativeCoords } from '@/utils/hitDetection';
 import {
   MAX_IMAGE_BYTES,
   normalizeRect,
+  tapToNativeCoords,
   validateImageFile,
   validateWorkshopForm,
   type WorkshopFormValues,
@@ -40,6 +42,50 @@ describe('normalizeRect', () => {
     const vertical = normalizeRect({ x: 10, y: 10 }, { x: 10, y: 50 });
     expect(vertical.width).toBe(1);
     expect(vertical.height).toBe(40);
+  });
+});
+
+describe('tapToNativeCoords (task 27b — entrance-animation-skew fix)', () => {
+  // 800×600 natural image; final display box 320×240 at (20, 80) — contain
+  // scale 0.4, zero letterbox. The `pop` entrance animation scales the card to
+  // 0.85 mid-flight: the box read then is 272×204 centered on the same point
+  // (44, 98). The visual center is (180, 200) in BOTH frames.
+  const NATURAL_W = 800;
+  const NATURAL_H = 600;
+  const FINAL_RECT = { left: 20, top: 80, width: 320, height: 240 };
+  const MID_ANIMATION_RECT = { left: 44, top: 98, width: 272, height: 204 };
+  const CENTER_TAP = { clientX: 180, clientY: 200 };
+
+  it('maps a tap on the FINAL box to native coords (400, 300)', () => {
+    const native = tapToNativeCoords(CENTER_TAP.clientX, CENTER_TAP.clientY, FINAL_RECT, NATURAL_W, NATURAL_H);
+    expect(native).not.toBeNull();
+    expect(native!.x).toBeCloseTo(400, 6);
+    expect(native!.y).toBeCloseTo(300, 6);
+  });
+
+  it('maps a tap DURING the entrance animation (scaled box) to the same native center — uniform scale cancels', () => {
+    // The whole card is uniformly scaled mid-pop; recomputing the transform
+    // from the SAME (scaled) rect makes the tap math frame-agnostic.
+    const native = tapToNativeCoords(CENTER_TAP.clientX, CENTER_TAP.clientY, MID_ANIMATION_RECT, NATURAL_W, NATURAL_H);
+    expect(native).not.toBeNull();
+    expect(native!.x).toBeCloseTo(400, 6);
+    expect(native!.y).toBeCloseTo(300, 6);
+  });
+
+  it('reproduces the F3 bug via the OLD stale-transform path (~470, 353) — proving the fresh recompute is required', () => {
+    // Old code: syncGeometry() ran mid-animation → stored transform computed
+    // from the 0.85-scaled box (scale 0.34); the tap then used the FULL box
+    // with that stale transform → native coords overshoot by 1/0.85.
+    const stale = computeContainTransform(NATURAL_W, NATURAL_H, MID_ANIMATION_RECT.width, MID_ANIMATION_RECT.height);
+    const broken = toNativeCoords(CENTER_TAP.clientX, CENTER_TAP.clientY, FINAL_RECT, stale);
+    expect(broken.x).toBeCloseTo(400 / 0.85, 5);
+    expect(broken.y).toBeCloseTo(300 / 0.85, 5);
+    expect(broken.x).not.toBeCloseTo(400, 1);
+  });
+
+  it('returns null for a not-yet-laid-out box (guard parity with syncGeometry)', () => {
+    expect(tapToNativeCoords(10, 10, { left: 0, top: 0, width: 0, height: 0 }, NATURAL_W, NATURAL_H)).toBeNull();
+    expect(tapToNativeCoords(10, 10, FINAL_RECT, 0, 0)).toBeNull();
   });
 });
 

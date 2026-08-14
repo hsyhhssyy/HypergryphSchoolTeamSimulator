@@ -24,7 +24,6 @@ import {
   toDisplayCoords,
   toNativeCoords,
   type ContainTransform,
-  type ElementRect,
   type Point,
 } from '@/utils/hitDetection';
 import { differenceMarkerStyle } from '@/components/ImagePanel';
@@ -66,6 +65,46 @@ export function normalizeRect(a: Point, b: Point): { x: number; y: number; width
     width: Math.max(1, Math.abs(a.x - b.x)),
     height: Math.max(1, Math.abs(a.y - b.y)),
   };
+}
+
+/** A measured element box (full rect) — for fresh-transform tap math. */
+export interface MeasuredRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Client-space tap → image-NATIVE coords using a FRESH contain transform
+ * recomputed from the LIVE element box at tap time (task 27b).
+ *
+ * Immune to a stale stored `geometry.transform`: syncGeometry() can measure
+ * the img mid-way through the card's `pop` entrance animation (scale 0.85),
+ * when getBoundingClientRect is still scaled — a transform-only change that
+ * never refires ResizeObserver, so the stale transform would otherwise
+ * persist forever. Because the box and its transform are derived from the
+ * SAME rect, a uniform ancestor scale cancels out exactly: the native result
+ * is correct whether the tap lands mid-animation or after it settles.
+ * Returns null when there is nothing measurable yet (guard parity with
+ * syncGeometry/currentRect).
+ */
+export function tapToNativeCoords(
+  clientX: number,
+  clientY: number,
+  rect: MeasuredRect,
+  naturalW: number,
+  naturalH: number,
+): Point | null {
+  if (rect.width === 0 || rect.height === 0 || naturalW === 0 || naturalH === 0) {
+    return null;
+  }
+  return toNativeCoords(
+    clientX,
+    clientY,
+    rect,
+    computeContainTransform(naturalW, naturalH, rect.width, rect.height),
+  );
 }
 
 /** Form values validateWorkshopForm reads — plain data, unit-testable. */
@@ -279,7 +318,10 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
       NOTE: only the SCROLL-INVARIANT parts (transform, natural dims) live in
       state; the element rect is read FRESH from the overlay at each pointer
       event, because page scroll changes rect.top/left without firing
-      ResizeObserver (a stale rect would corrupt tap→native math). */
+      ResizeObserver (a stale rect would corrupt tap→native math).
+      The stored transform can ALSO be skewed if measured mid-entrance-animation
+      (transform-only pop, no ResizeObserver refire) — corrected by
+      onAnimationEnd, and tap math recomputes it fresh regardless (task 27b). */
   const syncGeometry = (): void => {
     const img = imgRef.current;
     if (!img || img.naturalWidth === 0) return;
@@ -297,12 +339,15 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
     });
   };
 
-  const currentRect = (): ElementRect | null => {
+  /** Live overlay box (full rect) read at each pointer event. The stored
+      geometry.transform may be stale (entrance-animation skew), so tap math
+      recomputes the contain transform fresh from this rect (task 27b). */
+  const currentRect = (): MeasuredRect | null => {
     const overlay = overlayRef.current;
     if (overlay === null) return null;
     const rect = overlay.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null;
-    return { left: rect.left, top: rect.top };
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
   };
 
   // Keep the transform fresh across layout shifts (viewport resize, URL bar).
@@ -340,11 +385,15 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
     if (geometry === null || rect === null) return;
     event.preventDefault();
     overlayRef.current?.setPointerCapture(event.pointerId);
-    const startNative = clampNative(
-      toNativeCoords(event.clientX, event.clientY, rect, geometry.transform),
+    const native = tapToNativeCoords(
+      event.clientX,
+      event.clientY,
+      rect,
       geometry.naturalW,
       geometry.naturalH,
     );
+    if (native === null) return;
+    const startNative = clampNative(native, geometry.naturalW, geometry.naturalH);
     setDrag({
       pointerId: event.pointerId,
       startClient: { x: event.clientX, y: event.clientY },
@@ -356,19 +405,23 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
   const handleOverlayPointerMove = (event: PointerEvent): void => {
     const rect = currentRect();
     if (geometry === null || rect === null) return;
+    const native = tapToNativeCoords(
+      event.clientX,
+      event.clientY,
+      rect,
+      geometry.naturalW,
+      geometry.naturalH,
+    );
     setDrag((prev) => {
       if (prev === null || prev.pointerId !== event.pointerId) return prev;
+      if (native === null) return prev;
       const moved =
         Math.hypot(event.clientX - prev.startClient.x, event.clientY - prev.startClient.y) >=
         DRAG_THRESHOLD_PX;
       if (!moved) return prev;
       return {
         ...prev,
-        currentNative: clampNative(
-          toNativeCoords(event.clientX, event.clientY, rect, geometry.transform),
-          geometry.naturalW,
-          geometry.naturalH,
-        ),
+        currentNative: clampNative(native, geometry.naturalW, geometry.naturalH),
       };
     });
   };
@@ -632,7 +685,21 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
 
         {/* Differences editor — tap circle / drag rect over the live preview */}
         {activeImageA && (
-          <section className="card workshop-editor" aria-labelledby="workshop-editor-heading">
+          <section
+            className="card workshop-editor"
+            aria-labelledby="workshop-editor-heading"
+            onAnimationEnd={(e) => {
+              // The card's own `pop` entry animation (transform-only, scale
+              // 0.85→1) skews getBoundingClientRect mid-flight; the img may
+              // have loaded inside that window and baked a too-small stored
+              // transform (a transform-only change never refires
+              // ResizeObserver). Re-sync after the animation settles so the
+              // stored transform drives marker rendering correctly. Bubbled
+              // marker pops (target !== currentTarget) add nothing — skip.
+              if (e.target !== e.currentTarget) return;
+              syncGeometry();
+            }}
+          >
             <h2 id="workshop-editor-heading" className="menu__heading">
               添加差异区域
             </h2>
