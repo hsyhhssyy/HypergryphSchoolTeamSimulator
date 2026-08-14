@@ -2,6 +2,7 @@ import { cors } from 'hono/cors';
 import { Hono } from 'hono';
 import type { AppBindings } from './bindings';
 import { questionsRoutes } from './routes/questions';
+import { ratingsRoutes } from './routes/ratings';
 import { workshopRoutes } from './routes/workshop';
 
 const app = new Hono<{ Bindings: AppBindings }>();
@@ -22,11 +23,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/', workshopRoutes);
 app.route('/', questionsRoutes);
-
-app.post('/api/ratings', (c) => {
-  void c.env.DB;
-  return c.json({ error: 'not implemented' }, 501);
-});
+app.route('/', ratingsRoutes);
 
 app.get('/api/workshop/pending', (c) => {
   void c.env.DB;
