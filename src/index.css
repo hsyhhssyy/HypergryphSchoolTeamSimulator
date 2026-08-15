@@ -70,6 +70,9 @@
   --duration-emphasis: 350ms;
   /* Todo 5: playful alternating tilt for mode cards (±2° never more). */
   --tilt-card: 2deg;
+  /* Todo 6: smaller ±1° lean for HUD chips + result rows (never more than
+     the card tilt — small chrome, small lean). */
+  --tilt-chip: 1deg;
 
   /* Safe areas (iOS notch / home bar) */
   --safe-area-top: env(safe-area-inset-top, 0px);
@@ -255,6 +258,21 @@ button {
   line-height: 1.4;
   color: var(--color-ink);
   background: var(--color-background-alt);
+  /* Todo 6: chips become little stickers — same ring + candy shadow as the
+     mode cards. */
+  box-shadow: var(--shadow-sticker);
+}
+
+/* Todo 6: cute alternating lean, ±1° never more. transform-only (chips are
+   static — no animation overrides it) so the HUD flex row keeps its exact
+   layout box. nth-child counts ALL .hud children (chip, timer, chip), so in
+   the HUD both chips match odd — a consistent lean, not a breakage. */
+.chip:nth-child(odd) {
+  transform: rotate(calc(-1 * var(--tilt-chip)));
+}
+
+.chip:nth-child(even) {
+  transform: rotate(var(--tilt-chip));
 }
 
 .chip--success {
@@ -524,6 +542,7 @@ button {
    high-contrast card (ink on surface) with a primary accent edge, always
    visible above the panels during gameplay. */
 .question-description {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -531,9 +550,30 @@ button {
   max-width: 720px;
   padding: var(--space-3) var(--space-4);
   background: var(--color-surface);
-  border-left: 6px solid var(--color-primary);
+  /* Todo 6: the straight 6px primary edge became a wavy sticker ribbon
+     (::before below). padding-left grows by the old border width so the
+     title/text block sits at the EXACT same offset. No transform here —
+     this card sits directly above the panels. */
+  border-left: none;
+  padding-left: calc(var(--space-4) + 6px);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+}
+
+/* Todo 6: decorative wavy ribbon — a repeating SVG wave in --color-primary
+   (data URIs can't reference var(); the hex mirrors the token). Decorative
+   pseudo-element: never exposed to AT, no motion to collapse. */
+.question-description::before {
+  content: '';
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-3);
+  bottom: var(--space-3);
+  width: 10px;
+  border-radius: var(--radius-pill);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='20' viewBox='0 0 10 20'%3E%3Cpath d='M5 0 C9 3.5 1 6.5 5 10 C9 13.5 1 16.5 5 20' fill='none' stroke='%23ff8a3d' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 10px 20px;
+  background-repeat: repeat-y;
 }
 
 .question-description__title {
@@ -1358,6 +1398,18 @@ button {
   animation-fill-mode: backwards;
 }
 
+/* Todo 6: cute alternating ±1° lean. Uses the INDEPENDENT `rotate`
+   property, NOT `transform`: the pop keyframes animate `transform` only, so
+   the two compose — the row pops in already tilted and keeps the lean after
+   settling, instead of the animation overriding a static transform. */
+.result-list__item:nth-child(odd) {
+  rotate: calc(-1 * var(--tilt-chip));
+}
+
+.result-list__item:nth-child(even) {
+  rotate: var(--tilt-chip);
+}
+
 .result-list__item:nth-child(2) { animation-delay: 45ms; }
 .result-list__item:nth-child(3) { animation-delay: 90ms; }
 .result-list__item:nth-child(4) { animation-delay: 135ms; }
@@ -1411,7 +1463,17 @@ button {
 .result-replay {
   width: 100%;
   max-width: 420px;
-  min-height: 52px;
+  min-height: 60px;
+}
+
+/* Todo 6: decorative sparkle ✦ — a flex item before the label (the .btn
+   base carries the gap). Pseudo-element content is never exposed to AT, so
+   no aria needed; static glyph, no motion to collapse. */
+.result-replay::before {
+  content: '✦';
+  font-size: var(--font-size-h2);
+  line-height: 1;
+  color: var(--color-accent);
 }
 
 /* Rating — workshop-only 👍/👎 (todo 21). Rendered ONLY for approved workshop
