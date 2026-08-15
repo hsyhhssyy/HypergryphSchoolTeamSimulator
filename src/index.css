@@ -921,6 +921,16 @@ button {
   margin-bottom: var(--space-2);
 }
 
+/* Wordmark title image — sizes itself; the h1 keeps the 3s long-press */
+.menu__title-img {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: auto;
+  max-width: min(80vw, 420px);
+  height: auto;
+}
+
 .menu__section {
   width: 100%;
   max-width: 420px;

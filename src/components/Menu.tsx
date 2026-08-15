@@ -89,14 +89,19 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
   return (
     <main className="screen menu">
       <header className="menu__hero">
-        <h1
-          className="font-display"
-          style={{ fontSize: 'var(--font-size-display)' }}
-          {...titleLongPress}
-        >
-          找不同
+        <h1 className="font-display" {...titleLongPress}>
+          <picture>
+            <source type="image/webp" srcSet="/wordmark.webp" />
+            <img
+              className="menu__title-img"
+              src="/wordmark.png"
+              alt="鹰角网络校队"
+              draggable={false}
+              decoding="async"
+            />
+          </picture>
         </h1>
-        <p className="text-muted">双图找茬 · 区域识别 · 答题小游戏</p>
+        <p className="text-muted">找不同 · 区域识别 · 答题小游戏</p>
       </header>
 
       <section className="menu__section" aria-labelledby="menu-mode-heading">
