@@ -500,8 +500,15 @@ button {
   }
 
   .game-panels,
-  .hud,
-  .question-description {
+  .hud {
+    max-width: min(1120px, 92vw);
+  }
+
+  /* Todo 4: .question-description scoped under .game-screen so the 0,2,0
+     specificity beats the later §14 base max-width rule (equal specificity
+     would lose on source order here); the §14 base stays the mobile
+     contract. */
+  .game-screen .question-description {
     max-width: min(1120px, 92vw);
   }
 
