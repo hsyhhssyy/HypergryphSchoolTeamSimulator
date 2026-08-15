@@ -5,6 +5,13 @@
  * auto-approve loop (NO admin step), and the BGM player (no autoplay before
  * the first gesture).
  *
+ * Todo 7 (home-title-image-responsive): all interaction helpers are
+ * DEVICE-AGNOSTIC (hasTouch detected at runtime → touchscreen.tap/locator.tap
+ * on touch contexts, mouse.click/locator.click elsewhere). This spec itself
+ * only runs on the chromium-mobile project (see playwright.config.ts), where
+ * the spot_diff panels are STACKED (todo 3); the desktop side-by-side layout
+ * is asserted in e2e/responsive-layout.spec.ts.
+ *
  * Determinism strategy (inherited from todo 27 QA):
  *  - Official seed images are external picsum.photos URLs. They are
  *    route-mocked here with locally GENERATED real PNGs (800×600, zlib-built
@@ -172,6 +179,34 @@ const SAFE_NATIVE_POINT: Point = { x: 400, y: 520 };
 
 // —————————————————————————————— page helpers ——————————————————————————————
 
+/**
+ * Device-agnostic tap dispatch (todo 7). `page.touchscreen.tap` throws on
+ * non-touch contexts and `locator.tap()` throws on non-touch pages — detect
+ * touch at runtime (`navigator.maxTouchPoints` is >0 under Playwright's
+ * `hasTouch:true` emulation, 0 on the desktop project) and route through the
+ * matching transport. Evaluated per call so per-test `test.use({ hasTouch })`
+ * overrides are honored.
+ */
+async function hasTouch(page: Page): Promise<boolean> {
+  return page.evaluate(() => navigator.maxTouchPoints > 0);
+}
+
+/** Tap a VIEWPORT coordinate — touchscreen.tap on touch contexts, mouse elsewhere. */
+async function tapAt(page: Page, x: number, y: number): Promise<void> {
+  if (await hasTouch(page)) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
+}
+
+/**
+ * Tap a locator — `locator.tap()` on touch contexts; `locator.click()` on
+ * mouse contexts (click also auto-scrolls + waits for actionability, which is
+ * exactly what a below-fold desktop tap needs).
+ */
+async function tapLocator(page: Page, locator: Locator): Promise<void> {
+  if (await hasTouch(page)) await locator.tap();
+  else await locator.click();
+}
+
 /** Wait for a game-panel image to load, then return its box + natural dims. */
 async function loadedImageBox(img: Locator): Promise<{
   box: { x: number; y: number; width: number; height: number };
@@ -193,16 +228,32 @@ async function loadedImageBox(img: Locator): Promise<{
 }
 
 /**
- * Tap a NATIVE coordinate on panel `panelIndex` (0 = left/first panel).
+ * Tap a NATIVE coordinate on panel `panelIndex` (0 = first panel, 1 = second).
  * Computed at runtime: img box + natural dims → contain transform → display
- * point → `page.tap`. No hardcoded pixels anywhere.
+ * point → device-agnostic `tapAt`. No hardcoded pixels anywhere.
+ *
+ * Todo 7 (Metis gap): the mobile layout STACKS the two panels — panel 1 can
+ * sit below the fold. Wait for the image to decode, then
+ * `scrollIntoViewIfNeeded()` BEFORE measuring, so the viewport-relative box
+ * (and the tap derived from it) is valid. The game-screen entrance is
+ * fade-only (`screen-fade`, opacity — no transform), so the bounding box is
+ * stable and this never blocks on a running animation.
  */
 async function tapNativePoint(page: Page, panelIndex: number, native: Point): Promise<void> {
-  const img = page.locator('.game-panels > .image-panel').nth(panelIndex).locator('img.image-panel-img');
+  const img = page
+    .locator('.game-panels > .image-panel')
+    .nth(panelIndex)
+    .locator('img.image-panel-img');
+  await expect
+    .poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0);
+  await img.scrollIntoViewIfNeeded();
   const { box, naturalW, naturalH } = await loadedImageBox(img);
   const t = computeContainTransform(naturalW, naturalH, box.width, box.height);
   const display = toDisplayPoint(native.x, native.y, t);
-  await page.touchscreen.tap(box.x + display.x, box.y + display.y);
+  await tapAt(page, box.x + display.x, box.y + display.y);
 }
 
 /** Read the current question title from the DOM. */
@@ -232,14 +283,14 @@ async function startGame(
   await page.goto('/');
   await expect(page.locator('.menu')).toBeVisible();
   const modeCard = page.locator('.mode-card', { hasText: modeLabel });
-  await modeCard.tap();
+  await tapLocator(page, modeCard);
   await expect(modeCard).toHaveAttribute('aria-pressed', 'true');
   const sourceOption = page.locator('.source-toggle__option', { hasText: sourceLabel });
-  await sourceOption.tap();
+  await tapLocator(page, sourceOption);
   await expect(sourceOption).toHaveAttribute('aria-pressed', 'true');
   const [request] = await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/questions?')),
-    page.locator('.menu__start').tap(),
+    tapLocator(page, page.locator('.menu__start')),
   ]);
   await expect(page.locator('.hud')).toBeVisible();
   return request.url();
@@ -294,7 +345,7 @@ async function submitWorkshopViaUI(
   opts: { title: string; description: string; author: string },
 ): Promise<{ title: string; native: Point }> {
   await page.goto('/');
-  await page.locator('.menu__workshop').tap();
+  await tapLocator(page, page.locator('.menu__workshop'));
   await expect(page.locator('.workshop-screen')).toBeVisible();
 
   await page.fill('#workshop-title', opts.title);
@@ -341,7 +392,7 @@ async function submitWorkshopViaUI(
   await overlay.click({ position: { x: box.width / 2, y: box.height / 2 } });
   await expect(page.locator('.workshop-diff-item')).toHaveCount(1);
 
-  await page.locator('.workshop-form__submit').tap();
+  await tapLocator(page, page.locator('.workshop-form__submit'));
   const toast = page.locator('.toast--success');
   await expect(toast).toBeVisible();
   await expect(toast).toContainText('投稿成功');
@@ -389,7 +440,9 @@ test.describe('h5-spot-diff-game full E2E', () => {
     await expect(page.locator('.game-screen')).toBeVisible();
   });
 
-  test('2. GameScreen renders two images side by side + HUD', async ({ page }) => {
+  test('2. GameScreen renders two images stacked vertically (mobile) + HUD', async ({
+    page,
+  }) => {
     await startGame(page, '找不同', '仅官方题目');
     // Two panels (direct children of .game-panels — each ImagePanel renders a
     // nested .image-panel wrapper, so a descendant count would be 4).
@@ -405,6 +458,18 @@ test.describe('h5-spot-diff-game full E2E', () => {
       expect(naturalW).toBe(800);
       expect(naturalH).toBe(600);
     }
+    // Mobile portrait (375×812) → the two spot_diff panels STACK vertically
+    // (todo 3: `grid-template-columns: 1fr` below 900px — the desktop
+    // side-by-side layout lives in responsive-layout.spec.ts). Assert the
+    // REAL computed geometry, not just element counts: panel 1 sits BELOW
+    // panel 0 in the same single grid track (x aligned, y increasing).
+    const panels = page.locator('.game-panels > .image-panel');
+    const b0 = await panels.nth(0).boundingBox();
+    const b1 = await panels.nth(1).boundingBox();
+    expect(b0, 'panel 0 has a box').not.toBeNull();
+    expect(b1, 'panel 1 has a box').not.toBeNull();
+    expect(b1!.y, 'stacked: panel 1 below panel 0').toBeGreaterThan(b0!.y);
+    expect(Math.abs(b1!.x - b0!.x), 'stacked: panels share the same column x').toBeLessThan(2);
   });
 
   test('3. tapping a correct difference draws green circles + score +100', async ({ page }) => {
@@ -454,7 +519,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
     await playGameToResult(page, OFFICIAL_FIND_AREA, 1);
     await expect(page.getByTestId('result-score')).toBeVisible();
 
-    await page.getByTestId('result-replay').tap();
+    await tapLocator(page, page.getByTestId('result-replay'));
     await expect(page.locator('.menu')).toBeVisible();
     await expect(page.locator('.mode-card')).toHaveCount(2);
     // Fresh selections: start button disabled again until a mode is picked.
@@ -560,9 +625,9 @@ test.describe('h5-spot-diff-game full E2E', () => {
       );
 
       // 包含创意工坊 + same mode (spot_diff) → start a NEW game.
-      await page.locator('.mode-card', { hasText: '找不同' }).tap();
-      await page.locator('.source-toggle__option', { hasText: '包含创意工坊' }).tap();
-      await page.locator('.menu__start').tap();
+      await tapLocator(page, page.locator('.mode-card', { hasText: '找不同' }));
+      await tapLocator(page, page.locator('.source-toggle__option', { hasText: '包含创意工坊' }));
+      await tapLocator(page, page.locator('.menu__start'));
 
       await expect(page.getByTestId('question-title')).toHaveText(submitted.title);
 
@@ -601,7 +666,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
     const pausedOnLoad = await page.evaluate(() => document.querySelector('audio')?.paused ?? true);
     expect(pausedOnLoad).toBe(true);
 
-    await toggle.tap();
+    await tapLocator(page, toggle);
     await expect(page.locator('.bgm-player__panel')).toBeVisible();
     // Expanding the panel must not start playback either.
     const pausedAfterExpand = await page.evaluate(
@@ -609,7 +674,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
     );
     expect(pausedAfterExpand).toBe(true);
 
-    await page.locator('.bgm-player__btn--main').tap();
+    await tapLocator(page, page.locator('.bgm-player__btn--main'));
     // Real playback state, not just UI text (misleading-success probe).
     await expect
       .poll(() => page.evaluate(() => !(document.querySelector('audio')?.paused ?? true)), {
@@ -619,7 +684,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
     await expect(toggle).toHaveClass(/is-playing/);
 
     // Pause still works — the loop stays under user control.
-    await page.locator('.bgm-player__btn--main').tap();
+    await tapLocator(page, page.locator('.bgm-player__btn--main'));
     await expect
       .poll(() => page.evaluate(() => document.querySelector('audio')?.paused ?? true))
       .toBe(true);

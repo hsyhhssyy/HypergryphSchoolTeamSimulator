@@ -1,12 +1,24 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * Playwright E2E config — todo 28 (h5-spot-diff-game).
+ * Playwright E2E config — todo 28 (h5-spot-diff-game) + todo 7
+ * (home-title-image-responsive desktop/responsive project).
  *
- * Mobile-H5 profile: Chromium, 375×812 viewport, touch emulation
- * (`hasTouch` + `isMobile` — required for `page.tap()`). Videos are recorded
- * for every test and retained in test-results/ (`.omo/evidence/` receives a
- * copy when a test FAILS — see the QA/cleanup procedure).
+ * TWO device projects share the same local servers:
+ *  - chromium-mobile  (375×812, hasTouch, isMobile) — the original 11-scenario
+ *    h5-spot-diff-game suite (`e2e/h5-spot-diff-game.spec.ts`). Videos are
+ *    recorded for every test and retained in test-results/
+ *    (`.omo/evidence/` receives a copy when a test FAILS — see the QA/cleanup
+ *    procedure).
+ *  - chromium-desktop (1280×800, mouse only) — the responsive/title spec
+ *    (`e2e/responsive-layout.spec.ts`, todo 7). `hasTouch:false` +
+ *    `isMobile:false` so `page.touchscreen.tap`/`locator.tap()` THROW here —
+ *    the spec's device-agnostic helpers dispatch mouse clicks instead.
+ *
+ * Project scoping is by testMatch/testIgnore: mobile ignores the responsive
+ * spec, desktop matches ONLY the responsive spec (desktop intentionally does
+ * not re-run the touch suite — the refactored h5 spec is device-agnostic but
+ * its scenarios are written for the stacked mobile layout).
  *
  * Runs against TWO local dev servers (webServer array):
  *   - vite dev  (frontend)            → http://localhost:5173
@@ -49,6 +61,20 @@ export default defineConfig({
         hasTouch: true,
         isMobile: true,
       },
+      // The responsive spec covers the desktop layout; the mobile suite keeps
+      // the original 11 scenarios (todo 7 scoping).
+      testIgnore: /responsive-layout\.spec\.ts/,
+    },
+    {
+      name: 'chromium-desktop',
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        hasTouch: false,
+        isMobile: false,
+      },
+      // Mouse-driven responsive/title assertions only (todo 7).
+      testMatch: /responsive-layout\.spec\.ts/,
     },
   ],
   webServer: [
