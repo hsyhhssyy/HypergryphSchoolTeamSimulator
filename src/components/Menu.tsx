@@ -88,6 +88,16 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
 
   return (
     <main className="screen menu">
+      {/* Todo 5: decorative background stickers — aria-hidden + pointer-events
+          none (CSS), so they never intercept the title long-press. */}
+      <div className="menu__stickers" aria-hidden="true">
+        <span className="menu__sticker menu__sticker--star-1" />
+        <span className="menu__sticker menu__sticker--star-2" />
+        <span className="menu__sticker menu__sticker--circle-1" />
+        <span className="menu__sticker menu__sticker--circle-2" />
+        <span className="menu__sticker menu__sticker--dot" />
+      </div>
+
       <header className="menu__hero">
         <h1 className="font-display" {...titleLongPress}>
           <picture>
@@ -107,6 +117,20 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
       <section className="menu__section" aria-labelledby="menu-mode-heading">
         <h2 id="menu-mode-heading" className="menu__heading">
           选择模式
+          {/* Todo 5: hand-drawn squiggle underline — decorative, stroked via
+              the --color-accent token in CSS. */}
+          <svg
+            className="menu__heading-squiggle"
+            viewBox="0 0 120 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2 8 C 12 4, 28 4, 40 8 C 52 12, 68 12, 80 8 C 92 4, 108 4, 118 6"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+          </svg>
         </h2>
         <div className="menu__modes">
           {MODE_OPTIONS.map((opt) => {
@@ -132,6 +156,18 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
       <section className="menu__section" aria-labelledby="menu-source-heading">
         <h2 id="menu-source-heading" className="menu__heading">
           题目来源
+          <svg
+            className="menu__heading-squiggle"
+            viewBox="0 0 120 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2 8 C 12 4, 28 4, 40 8 C 52 12, 68 12, 80 8 C 92 4, 108 4, 118 6"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+          </svg>
         </h2>
         <div className="source-toggle" role="group" aria-label="题目来源">
           {SOURCE_OPTIONS.map((opt) => (
@@ -158,6 +194,16 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
           if (mode !== null) onStart(mode, source);
         }}
       >
+        {/* Todo 5: decorative sparkle — aria-hidden, tinted via the accent
+            token in CSS. */}
+        <svg
+          className="menu__start-sparkle"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" />
+        </svg>
         开始游戏
       </button>
 

@@ -59,12 +59,17 @@
   --shadow-card: 0 4px 12px rgba(61, 44, 31, 0.12);
   --shadow-candy: 0 4px 0 #d96a2b, 0 6px 16px rgba(61, 44, 31, 0.18);
   --shadow-pop: 0 8px 24px rgba(61, 44, 31, 0.22);
+  /* Todo 5: sticker look — thicker surface ring + the existing candy shadow
+     (composed from tokens, no new hex). */
+  --shadow-sticker: 0 0 0 3px var(--color-surface), var(--shadow-candy);
 
   /* Motion (DESIGN.md §6) */
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-micro: 120ms;
   --duration-standard: 250ms;
   --duration-emphasis: 350ms;
+  /* Todo 5: playful alternating tilt for mode cards (±2° never more). */
+  --tilt-card: 2deg;
 
   /* Safe areas (iOS notch / home bar) */
   --safe-area-top: env(safe-area-inset-top, 0px);
@@ -76,6 +81,7 @@
   --anim-wiggle: wiggle 400ms ease-in-out;
   --anim-confetti: confetti-fall 2s linear infinite;
   --anim-fade-out: fade-out 600ms ease-out;
+  --anim-float: float 3s ease-in-out infinite;
 }
 
 /* --------------------------------------------------------------------------
@@ -640,6 +646,20 @@ button {
   }
 }
 
+/* Float — menu title image gentle hover (todo 5); decorative, so the global
+   reduced-motion block collapses it. */
+@keyframes float {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
 /* Wiggle — wrong-hit ✕ shake */
 @keyframes wiggle {
   0%,
@@ -947,6 +967,8 @@ button {
   gap: var(--space-6);
   padding-top: calc(var(--space-10) + var(--safe-area-top));
   text-align: center;
+  /* Todo 5: scoping box for the absolute decorative stickers. */
+  position: relative;
 }
 
 .menu__hero h1 {
@@ -961,6 +983,9 @@ button {
   pointer-events: auto;
   max-width: min(80vw, 420px);
   height: auto;
+  /* Todo 5: gentle floating hover — decorative, collapsed by the global
+     reduced-motion block. */
+  animation: var(--anim-float);
 }
 
 .menu__section {
@@ -973,8 +998,110 @@ button {
 }
 
 .menu__heading {
+  display: inline-block;
   font-size: var(--font-size-h2);
   color: var(--color-ink);
+}
+
+/* Todo 5: hand-drawn squiggly underline — sibling SVG sized in em so it hugs
+   the heading glyphs (a % width would resolve against the section, stretching
+   the h2 to full width), stroked with the accent token. aria-hidden +
+   decorative in Menu.tsx. */
+.menu__heading-squiggle {
+  display: block;
+  width: 3.6em;
+  height: 0.4em;
+  margin-top: 0.12em;
+  stroke: var(--color-accent);
+  overflow: visible;
+}
+
+/* Todo 5: decorative background stickers — behind content (z-index -1 within
+   the .menu stacking context, above the body gradient), never intercept
+   input (aria-hidden + pointer-events: none). */
+.menu__stickers {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.menu__sticker {
+  position: absolute;
+  pointer-events: none;
+}
+
+.menu__sticker--star-1 {
+  top: 7%;
+  left: 5%;
+  width: var(--space-10);
+  height: var(--space-10);
+  background: var(--color-accent);
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+  transform: rotate(calc(var(--tilt-card) * -6));
+}
+
+.menu__sticker--star-2 {
+  top: 58%;
+  left: 4%;
+  width: var(--space-6);
+  height: var(--space-6);
+  background: var(--color-accent-alt);
+  clip-path: polygon(
+    50% 0%,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+  transform: rotate(calc(var(--tilt-card) * 6));
+}
+
+.menu__sticker--circle-1 {
+  top: 14%;
+  right: 6%;
+  width: var(--space-6);
+  height: var(--space-6);
+  background: var(--color-secondary);
+  border-radius: var(--radius-marker);
+  opacity: 0.85;
+}
+
+.menu__sticker--circle-2 {
+  top: 52%;
+  right: 5%;
+  width: var(--space-8);
+  height: var(--space-8);
+  background: var(--color-success);
+  border-radius: var(--radius-marker);
+  opacity: 0.8;
+  transform: rotate(calc(var(--tilt-card) * 4));
+}
+
+.menu__sticker--dot {
+  top: 44%;
+  left: 9%;
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--color-info);
+  border-radius: var(--radius-marker);
+  opacity: 0.75;
 }
 
 /* Two touch cards side by side — ≥44px targets, candy elevation */
@@ -995,7 +1122,7 @@ button {
   border: 3px solid var(--color-background-alt);
   border-radius: var(--radius-card);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-sticker);
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
@@ -1004,15 +1131,37 @@ button {
     border-color var(--duration-micro) ease-out;
 }
 
+/* Todo 5: cute less-regular tilt — the two cards lean opposite ways, ±2°
+   never more. transform-only, so it rides the existing transition. */
+.mode-card:nth-child(odd) {
+  transform: rotate(calc(-1 * var(--tilt-card)));
+}
+
+.mode-card:nth-child(even) {
+  transform: rotate(var(--tilt-card));
+}
+
+/* Todo 5: desktop-only hover straightens + lifts the card (mouse-only, same
+   pattern as .btn at §4). :active excluded so the press pop still wins. */
+@media (hover: hover) {
+  .mode-card:hover:not(:active):not(.mode-card--active) {
+    transform: rotate(0) scale(1.03);
+  }
+}
+
 .mode-card:active:not(.mode-card--active) {
   transform: scale(0.96);
 }
 
-/* Selected state: gradient + candy shadow + pop entry (selection feedback) */
-.mode-card--active {
+/* Selected state: gradient + candy shadow + pop entry (selection feedback).
+   .mode-card.mode-card--active (0,2,0) beats the nth-child tilt (0,2,0, equal
+   but later) so the selected card sits straight — without it the pop ends on
+   identity and the card snaps back to its tilt. */
+.mode-card.mode-card--active {
   border-color: var(--color-primary);
   background: linear-gradient(180deg, var(--color-primary), var(--color-primary-alt));
   box-shadow: var(--shadow-candy);
+  transform: rotate(0);
   animation: var(--anim-pop);
 }
 
@@ -1088,11 +1237,20 @@ button {
   box-shadow: var(--shadow-card);
 }
 
-/* Start button — full-width candy CTA, disabled until a mode is picked */
+/* Start button — full-width candy CTA, disabled until a mode is picked.
+   Todo 5: bouncier — taller target, sparkle, and a cheeky -1° lean. */
 .menu__start {
   width: 100%;
   max-width: 420px;
-  min-height: 52px;
+  min-height: 60px;
+  transform: rotate(-1deg);
+}
+
+.menu__start-sparkle {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--color-accent);
 }
 
 .menu__error {
