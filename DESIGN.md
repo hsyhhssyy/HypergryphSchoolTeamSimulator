@@ -73,7 +73,7 @@ A candy-box arcade game: warm cream paper background, thick ink outlines, and sa
 | --space-10 | 40px | Major section breaks |
 
 ### Grid
-- Mobile-first; max content width 640px (game stays one column even on tablets).
+- Mobile-first; max content width 640px. Game panels: mobile/portrait stack the two spot-diff images vertically (`.game-panels` defaults to ONE `1fr` column); at `@media (min-width: 900px)` desktop, spot_diff goes side-by-side (`1fr 1fr` via `.game-panels:not(.game-panels--single)`), and the game panels / HUD / question description widen to `min(1120px, 92vw)`. find_area's single-panel mode (`.game-panels--single`) stays one column at EVERY width — the `:not(...--single)` guard must never be dropped.
 - Screen shell: `min-height: 100dvh` (never `100vh` — iOS URL bar), `padding: env(safe-area-inset-*)` via `--safe-area-top/bottom` tokens.
 - No horizontal scroll: `overflow-x: hidden` on html/body guard.
 
@@ -101,7 +101,7 @@ A candy-box arcade game: warm cream paper background, thick ink outlines, and sa
 - Full-viewport phase wrapper (menu / playing / round_end / result): `min-height: 100dvh`, safe-area padding, centered column stack.
 
 ### .hud (HUD, todo 15)
-- **Structure**: `<header class="hud">` — score chip + timer bar + found chip in one row, `max-width: 720px`.
+- **Structure**: `<header class="hud">` — score chip + timer bar + found chip in one row, `max-width: 720px`; at `@media (min-width: 900px)` desktop it widens to `min(1120px, 92vw)` (matches `.game-panels`).
 - **Timer bar**: track `--radius-pill`, fill width is a RUNTIME percent (`timeLeft/totalTime`, inline style — dynamic value, not a token), teal→mint gradient; `--low` variant (<25% remaining) switches to danger gradient — a real low-time signal, not decoration. Label uses `font-variant-numeric: tabular-nums` (no width jitter each second).
 - **Found chip**: `chip--success` when the count is shown; show_count=false renders the unnumbered "还有差异未找到" — gameplay concealment; the Result screen always reveals the count.
 - **Accessibility**: timer bar is a `role="progressbar"` with `aria-valuemin/max/now/text`.

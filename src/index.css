@@ -450,7 +450,10 @@ button {
 
 .game-panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Mobile-first (todo 3): portrait phones stack the two spot-diff images
+     vertically in ONE column; the desktop side-by-side layout lives in the
+     @media (min-width: 900px) block below. */
+  grid-template-columns: 1fr;
   gap: var(--space-4);
   width: 100%;
   max-width: 720px;
@@ -461,6 +464,22 @@ button {
    1fr column makes the panel span the full track. */
 .game-panels--single {
   grid-template-columns: 1fr;
+}
+
+/* Desktop (todo 3): spot_diff panels go side-by-side. The
+   :not(.game-panels--single) guard excludes find_area, whose --single rule
+   stays one column at every width. Game/HUD/description max-widths widen
+   from the 720px mobile cap to min(1120px, 92vw). */
+@media (min-width: 900px) {
+  .game-panels:not(.game-panels--single) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .game-panels,
+  .hud,
+  .question-description {
+    max-width: min(1120px, 92vw);
+  }
 }
 
 /* Question title + 题目描述 instruction block (todo 14) — prominent
