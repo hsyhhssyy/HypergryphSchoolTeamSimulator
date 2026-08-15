@@ -107,7 +107,7 @@ A candy-box arcade game: warm cream paper background, thick ink outlines, and sa
 - **Accessibility**: timer bar is a `role="progressbar"` with `aria-valuemin/max/now/text`.
 
 ### .result (Result screen, todo 15)
-- **Structure**: `.screen.result-screen` — title, score card, found/missed list, 再来一局 button (all `max-width: 420px`).
+- **Structure**: `.screen.result-screen` — title, score card, found/missed list, 再来一局 button (all `max-width: 420px` on mobile; at `@media (min-width: 900px)` desktop the result-card / result-list / result-replay / result-rating widen to `min(520px, 90vw)` — same for `.menu__section` / `.menu__start`; second ≥900px block, §8.2's owns the game surface).
 - **Score card**: white surface, `--color-success` left edge, display-font score, success-ink accuracy (accuracy = found/(found+wrong), 0 on the no-taps case — never NaN).
 - **Found/missed list**: one row per difference (numbered circle badge, type label 圆形区域/矩形区域, status 已找到/未找到). Missed rows = danger tint bg + danger border + danger status — ALWAYS shown regardless of show_count.
 - **States**: replay button = `.btn.btn--primary` → dispatch RESET.

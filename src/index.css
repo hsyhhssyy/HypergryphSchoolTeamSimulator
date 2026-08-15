@@ -480,6 +480,38 @@ button {
   .question-description {
     max-width: min(1120px, 92vw);
   }
+
+  /* Todo 4: desktop menu + result widening. Scoped under their screen
+     ancestors so the 0,2,0 specificity beats the later §12/§13 base
+     max-width rules (equal specificity would lose on source order here);
+     the §12/§13 base values stay the mobile contract. */
+  .menu .menu__section {
+    max-width: min(520px, 90vw);
+  }
+
+  .menu .menu__start {
+    max-width: min(520px, 90vw);
+  }
+
+  .result-screen .result-card {
+    max-width: min(520px, 90vw);
+  }
+
+  .result-screen .result-list {
+    max-width: min(520px, 90vw);
+  }
+
+  .result-screen .result-replay {
+    max-width: min(520px, 90vw);
+  }
+
+  .result-screen .result-rating {
+    max-width: min(520px, 90vw);
+  }
+
+  .menu__hero .menu__title-img {
+    max-width: min(640px, 60vw);
+  }
 }
 
 /* Question title + 题目描述 instruction block (todo 14) — prominent
