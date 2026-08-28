@@ -27,6 +27,7 @@ import { defineConfig } from '@playwright/test';
  * REQUIRED before `npx playwright test` (todo 28 MUST DO):
  *   1. Seed local D1:
  *        npx wrangler d1 execute DB --local --file=migrations/0001_init.sql
+ *        npx wrangler d1 execute DB --local --file=migrations/0002_random_key.sql
  *        npx wrangler d1 execute DB --local --file=seed/official-questions.sql
  *   2. AUTO_APPROVE_WORKSHOP=true — the `[vars]` default; `.dev.vars` must NOT
  *      override it to "false" (scenario 10 asserts the no-admin auto-approve
@@ -79,7 +80,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev',
+      command: 'VITE_API_URL=http://localhost:8080 npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: true,
       timeout: 60_000,

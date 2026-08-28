@@ -13,6 +13,20 @@ const reviewBodySchema = z.object({
   status: z.enum(['approved', 'rejected']),
 });
 
+type ReviewRow = { status: string; image_a: string; image_b: string | null };
+
+const pendingKeys = (row: ReviewRow): string[] =>
+  [row.image_a, row.image_b].filter((key): key is string => key !== null);
+
+const extensionOf = (key: string): string => {
+  const match = /\.([a-z0-9]+)$/i.exec(key);
+  return match?.[1]?.toLowerCase() ?? 'bin';
+};
+
+const deleteObjects = async (bucket: R2Bucket, keys: string[]): Promise<void> => {
+  await Promise.all(keys.map((key) => bucket.delete(key).catch(() => undefined)));
+};
+
 /**
  * Composite row-value keyset cursor, base64(`${created_at}|${id}`). UUID ids
  * are not ordered with created_at (which is second-granularity and
@@ -99,20 +113,57 @@ moderationRoutes.post('/api/workshop/review', async (c) => {
   const { id, status } = parsed.data;
 
   const row = await c.env.DB
-    .prepare('SELECT status FROM questions WHERE id = ?')
+    .prepare('SELECT status, image_a, image_b FROM questions WHERE id = ?')
     .bind(id)
-    .first<{ status: string }>();
+    .first<ReviewRow>();
   if (row === null) return c.json({ error: 'question not found' }, 404);
   if (row.status !== 'pending') return c.json({ error: 'question has already been reviewed' }, 409);
 
+  const sourceKeys = pendingKeys(row);
+  let destinationKeys: string[] = [];
+
+  if (status === 'approved') {
+    // A unique publication generation prevents two concurrent reviewers from
+    // copying to (and then one loser deleting) the same destination objects.
+    const publicationId = crypto.randomUUID();
+    destinationKeys = sourceKeys.map(
+      (key, index) => `approved/${id}/${publicationId}-${index + 1}.${extensionOf(key)}`
+    );
+    try {
+      for (let index = 0; index < sourceKeys.length; index += 1) {
+        const sourceKey = sourceKeys[index]!;
+        const destinationKey = destinationKeys[index]!;
+        const object = await c.env.IMAGES.get(sourceKey);
+        if (object === null) throw new Error(`missing pending image: ${sourceKey}`);
+        await c.env.PUBLIC_IMAGES.put(destinationKey, object.body, {
+          httpMetadata: {
+            contentType: object.httpMetadata?.contentType ?? 'application/octet-stream',
+            cacheControl: 'public, max-age=31536000, immutable',
+          },
+        });
+      }
+    } catch {
+      await deleteObjects(c.env.PUBLIC_IMAGES, destinationKeys);
+      return c.json({ error: 'failed to publish submission images' }, 500);
+    }
+  }
+
   // Guarded UPDATE: re-checks status so a concurrent review cannot double-flip.
+  const imageA = status === 'approved' ? destinationKeys[0]! : row.image_a;
+  const imageB = status === 'approved' ? (destinationKeys[1] ?? null) : row.image_b;
   const update = await c.env.DB
-    .prepare("UPDATE questions SET status = ? WHERE id = ? AND status = 'pending'")
-    .bind(status, id)
+    .prepare("UPDATE questions SET status = ?, image_a = ?, image_b = ? WHERE id = ? AND status = 'pending'")
+    .bind(status, imageA, imageB, id)
     .run();
   if (update.meta.changes === 0) {
+    if (status === 'approved') await deleteObjects(c.env.PUBLIC_IMAGES, destinationKeys);
     return c.json({ error: 'question has already been reviewed' }, 409);
   }
+
+  // Once the DB points at public objects (or the submission is rejected), the
+  // quarantined copies are no longer needed. Cleanup is best-effort because
+  // the authoritative review decision has already committed.
+  await deleteObjects(c.env.IMAGES, sourceKeys);
 
   return c.json({ id, status });
 });

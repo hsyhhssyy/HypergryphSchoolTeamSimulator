@@ -1,8 +1,8 @@
 -- official-questions.sql — seed 5 official sample questions (todo 5)
 --
 -- Idempotent: fixed string ids + INSERT OR IGNORE. Re-running this file is a
--- no-op — existing rows are skipped, never duplicated, never partially
--- overwritten (verified: 2nd run exits 0, COUNT stays 5).
+-- existing question rows are never duplicated; the five fixed random keys at
+-- the end are safely normalized on every run (2nd run keeps COUNT at 5).
 --
 -- Images are DETERMINISTIC placeholders from picsum.photos (see
 -- seed/images/README.md). image_a and image_b use DIFFERENT seeds per
@@ -74,3 +74,11 @@ VALUES
    NULL,
    '[{"type":"circle","x":120,"y":450,"radius":35},{"type":"rect","x":400,"y":250,"width":50,"height":50},{"type":"circle","x":650,"y":500,"radius":30}]',
    0, 'official', 'approved');
+
+-- Stable, evenly spread keys keep a freshly seeded database from clustering
+-- every row at the migration column's compatibility default.
+UPDATE questions SET random_key = 0.10 WHERE id = 'official-001';
+UPDATE questions SET random_key = 0.30 WHERE id = 'official-002';
+UPDATE questions SET random_key = 0.50 WHERE id = 'official-003';
+UPDATE questions SET random_key = 0.70 WHERE id = 'official-004';
+UPDATE questions SET random_key = 0.90 WHERE id = 'official-005';

@@ -31,6 +31,7 @@ When real artwork is ready (plan decision #5):
    WHERE id='official-001'` for an already-seeded DB).
 2. Keep the replacement images at **800×600** — or re-author every
    `differences` coordinate in the same native pixel space as the new image.
-3. Preferred hosts: the project's own R2 bucket via the `/images/:filename`
+3. Preferred hosts: the project's approved-image R2 bucket via the public
+   custom domain (or the `/public-images/approved/:filename` fallback)
    route, or any CDN you control. Do not hotlink third-party art, and do not
    embed base64 in SQL.

@@ -895,11 +895,11 @@ test.describe('h5-spot-diff-game full E2E', () => {
 
       await expect(page.getByTestId('question-title')).toHaveText(submitted.title);
 
-      // Its images load through the REAL /images/:filename route (R2).
+      // Its approved images load through the REAL no-D1 public image route (R2).
       const imgs = page.locator('.game-panels img.image-panel-img');
       await expect(imgs).toHaveCount(2);
       for (let i = 0; i < 2; i++) {
-        await expect(imgs.nth(i)).toHaveAttribute('src', /\/images\//);
+        await expect(imgs.nth(i)).toHaveAttribute('src', /\/public-images\/approved\//);
         const { naturalW, naturalH } = await loadedImageBox(imgs.nth(i));
         expect(naturalW).toBe(800);
         expect(naturalH).toBe(600);

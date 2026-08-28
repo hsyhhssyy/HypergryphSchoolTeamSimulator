@@ -77,7 +77,7 @@ const deleteObjects = async (bucket: R2Bucket, keys: string[]): Promise<void> =>
 export const workshopRoutes = new Hono<{ Bindings: AppBindings }>();
 
 workshopRoutes.post('/api/workshop', async (c) => {
-  const { DB, IMAGES } = c.env;
+  const { DB, IMAGES, PUBLIC_IMAGES } = c.env;
 
   let form: FormData;
   try {
@@ -127,13 +127,19 @@ workshopRoutes.post('/api/workshop', async (c) => {
   }
 
   const id = crypto.randomUUID();
-  const imageAKey = `${id}-1.${ALLOWED_IMAGE_TYPES[checkA.contentType]}`;
+  const status: QuestionStatus = c.env.AUTO_APPROVE_WORKSHOP !== 'false' ? 'approved' : 'pending';
+  const prefix = status === 'approved' ? 'approved' : 'pending';
+  const imageAKey = `${prefix}/${id}-1.${ALLOWED_IMAGE_TYPES[checkA.contentType]}`;
+  const targetBucket = status === 'approved' ? PUBLIC_IMAGES : IMAGES;
 
   const uploaded: string[] = [];
   const putImage = async (file: File, key: string): Promise<void> => {
     uploaded.push(key);
-    await IMAGES.put(key, await file.arrayBuffer(), {
-      httpMetadata: { contentType: file.type },
+    await targetBucket.put(key, await file.arrayBuffer(), {
+      httpMetadata: {
+        contentType: file.type,
+        ...(status === 'approved' ? { cacheControl: 'public, max-age=31536000, immutable' } : {}),
+      },
     });
   };
 
@@ -141,21 +147,21 @@ workshopRoutes.post('/api/workshop', async (c) => {
   try {
     await putImage(fileA, imageAKey);
     if (imageBExt !== null && fileB !== null) {
-      imageBKey = `${id}-2.${ALLOWED_IMAGE_TYPES[imageBExt]}`;
+      imageBKey = `${prefix}/${id}-2.${ALLOWED_IMAGE_TYPES[imageBExt]}`;
       await putImage(fileB, imageBKey);
     }
   } catch {
-    await deleteObjects(IMAGES, uploaded);
+    await deleteObjects(targetBucket, uploaded);
     return c.json({ error: 'image upload failed' }, 500);
   }
 
-  const status: QuestionStatus = c.env.AUTO_APPROVE_WORKSHOP !== 'false' ? 'approved' : 'pending';
   const createdAt = new Date().toISOString();
+  const randomKey = crypto.getRandomValues(new Uint32Array(1))[0]! / 0x1_0000_0000;
   try {
     await DB.prepare(
       `INSERT INTO questions
-         (id, mode, title, description, image_a, image_b, differences, show_count, source, author_id, author_name, status, likes, dislikes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'workshop', ?, ?, ?, 0, 0, ?)`
+         (id, mode, title, description, image_a, image_b, differences, show_count, source, author_id, author_name, status, likes, dislikes, random_key, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'workshop', ?, ?, ?, 0, 0, ?, ?)`
     )
       .bind(
         id,
@@ -169,11 +175,12 @@ workshopRoutes.post('/api/workshop', async (c) => {
         body.author_id ?? null,
         body.author_name,
         status,
+        randomKey,
         createdAt
       )
       .run();
   } catch {
-    await deleteObjects(IMAGES, uploaded);
+    await deleteObjects(targetBucket, uploaded);
     return c.json({ error: 'failed to store submission' }, 500);
   }
 

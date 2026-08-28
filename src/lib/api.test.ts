@@ -220,6 +220,18 @@ describe('resolveImageUrl', () => {
   it('maps R2 keys onto the Worker image route', () => {
     expect(resolveImageUrl('abc123-1.png')).toBe(`${BASE}/images/abc123-1.png`);
   });
+
+  it('maps approved keys onto the public no-D1 image route', () => {
+    expect(resolveImageUrl('approved/abc 123-1.webp')).toBe(
+      `${BASE}/public-images/approved/abc%20123-1.webp`,
+    );
+  });
+
+  it('keeps pending keys on the authenticated private image route', () => {
+    expect(resolveImageUrl('pending/abc 123-1.webp')).toBe(
+      `${BASE}/images/pending/abc%20123-1.webp`,
+    );
+  });
 });
 
 describe('fetchAdminImage', () => {
@@ -235,5 +247,13 @@ describe('fetchAdminImage', () => {
     expect(url).toBe(`${BASE}/images/abc123-1.png`);
     const headers = new Headers(init.headers);
     expect(headers.get('X-Admin-Key')).toBe('admin-key');
+  });
+
+
+  it('URL-encodes each object-key segment without losing slashes', async () => {
+    const fetchMock = stubFetch({ status: 200, raw: new Blob(['img-bytes']) });
+    await fetchAdminImage('pending/abc 123-1.webp', 'admin-key');
+    const { url } = firstCall(fetchMock);
+    expect(url).toBe(`${BASE}/images/pending/abc%20123-1.webp`);
   });
 });

@@ -18,6 +18,10 @@ import type {
 
 /** Worker API base. `VITE_API_URL` wins when set; local dev default otherwise. */
 const API_BASE: string = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const PUBLIC_IMAGE_BASE: string = (import.meta.env.VITE_PUBLIC_IMAGE_URL || '').replace(/\/$/, '');
+
+const encodeObjectKey = (key: string): string =>
+  key.split('/').map(encodeURIComponent).join('/');
 
 /** Review decisions the admin can apply to a workshop submission. */
 export type ReviewDecision = 'approved' | 'rejected';
@@ -148,7 +152,14 @@ export async function reviewSubmission(
  * anything else is an R2 key served through the Worker image route.
  */
 export function resolveImageUrl(value: string): string {
-  return value.startsWith('http') ? value : `${API_BASE}/images/${value}`;
+  if (value.startsWith('http')) return value;
+  const key = encodeObjectKey(value);
+  if (value.startsWith('approved/')) {
+    return PUBLIC_IMAGE_BASE.length > 0
+      ? `${PUBLIC_IMAGE_BASE}/${key}`
+      : `${API_BASE}/public-images/${key}`;
+  }
+  return `${API_BASE}/images/${key}`;
 }
 
 /**
@@ -160,7 +171,7 @@ export async function fetchAdminImage(
   filename: string,
   adminKey: string,
 ): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/images/${filename}`, {
+  const res = await fetch(`${API_BASE}/images/${encodeObjectKey(filename)}`, {
     headers: { 'X-Admin-Key': adminKey },
   });
   if (!res.ok) throw new ApiError(await readErrorMessage(res), res.status);
