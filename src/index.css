@@ -1843,7 +1843,27 @@ button {
 }
 
 .field__required {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-left: var(--space-1);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
   color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, white);
+  font-family: var(--font-body);
+  font-size: var(--font-size-micro);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.workshop-error-target {
+  scroll-margin-block: var(--space-10);
+}
+
+.workshop-error-target:focus {
+  outline: 3px dashed var(--color-danger);
+  outline-offset: var(--space-2);
 }
 
 .field__input,
@@ -1920,6 +1940,12 @@ button {
 
 .workshop-upload__adjust {
   margin: var(--space-2);
+}
+
+.workshop-upload__status {
+  color: var(--color-success-ink);
+  font-size: var(--font-size-small);
+  font-weight: 700;
 }
 
 /* Zone editor — same contain math as ImagePanel (taps → native coords) */
@@ -2275,6 +2301,75 @@ button {
 .workshop-form__submit {
   width: 100%;
   min-height: 52px;
+}
+
+.workshop-readiness {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.workshop-readiness__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workshop-readiness__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid color-mix(in srgb, var(--color-danger) 28%, white);
+  border-radius: var(--radius-button);
+  background: color-mix(in srgb, var(--color-danger) 7%, white);
+}
+
+.workshop-readiness__item--complete {
+  border-color: color-mix(in srgb, var(--color-success) 40%, white);
+  background: color-mix(in srgb, var(--color-success) 8%, white);
+}
+
+.workshop-readiness__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-on);
+  background: var(--color-danger);
+  font-weight: 800;
+}
+
+.workshop-readiness__item--complete .workshop-readiness__icon {
+  background: var(--color-success-ink);
+}
+
+.workshop-readiness__item > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.workshop-readiness__item strong {
+  font-size: var(--font-size-small);
+}
+
+.workshop-readiness__item small {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-micro);
+}
+
+.workshop-validation-summary {
+  padding: var(--space-3);
+  border: 2px solid var(--color-danger);
+  border-radius: var(--radius-button);
+  color: var(--color-danger-ink);
+  background: color-mix(in srgb, var(--color-danger) 10%, white);
+  font-size: var(--font-size-small);
+  font-weight: 700;
 }
 
 /* Toast — fixed candy pill (success/error), pop entry + auto-dismiss (3.2s) */

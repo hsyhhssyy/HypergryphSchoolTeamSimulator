@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.11.0",
+    "heic-to": "^1.5.2",
     "hono": "^4.13.2",
     "preact": "^10.29.8",
     "zod": "^3.25.76"

@@ -202,7 +202,7 @@ export function ImageAdjustDialog({ image, reference, fixedOutput, title, onCanc
     setError(null);
     try {
       const rendered = await renderCroppedFile(image.originalUrl, rect, output, image.originalFile.name, image.originalFile.type);
-      onApply({ ...image, ...rendered, width: output.width, height: output.height });
+      onApply({ ...image, ...rendered });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '图片处理失败');
       setSaving(false);

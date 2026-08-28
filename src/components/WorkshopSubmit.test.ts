@@ -3,10 +3,14 @@ import type { Difference } from '@shared/types';
 import { computeContainTransform, toNativeCoords } from '@/utils/hitDetection';
 import {
   MAX_IMAGE_BYTES,
+  MAX_SOURCE_IMAGE_BYTES,
+  firstWorkshopErrorField,
+  isHeicImageFile,
   normalizeRect,
   tapToNativeCoords,
   validateImageFile,
   validateWorkshopForm,
+  workshopCompletion,
   type WorkshopFormValues,
 } from '@/components/WorkshopSubmit';
 
@@ -20,8 +24,8 @@ const VALID: WorkshopFormValues = {
   differences: [{ type: 'circle', x: 10, y: 10, radius: 5 }],
 };
 
-function file(size: number, mime: string): File {
-  return new File([new Uint8Array(size)], 'img.png', { type: mime });
+function file(size: number, mime: string, name = 'img.png'): File {
+  return new File([new Uint8Array(size)], name, { type: mime });
 }
 
 describe('normalizeRect', () => {
@@ -96,12 +100,45 @@ describe('validateImageFile', () => {
     expect(validateImageFile(file(1024, 'image/webp'))).toBeNull();
   });
 
-  it('rejects >5MB uploads client-side', () => {
-    expect(validateImageFile(file(MAX_IMAGE_BYTES + 1, 'image/png'))).toContain('5MB');
+  it('allows 5MB+ phone originals so the processing pipeline can compress them', () => {
+    expect(validateImageFile(file(MAX_IMAGE_BYTES, 'image/jpeg', 'large.jpg'))).toBeNull();
+    expect(validateImageFile(file(MAX_IMAGE_BYTES + 1, 'image/png'))).toBeNull();
+  });
+
+  it('rejects exceptionally large source files before mobile decoding', () => {
+    expect(validateImageFile(file(MAX_SOURCE_IMAGE_BYTES + 1, 'image/jpeg', 'huge.jpg'))).toContain('40MB');
+  });
+
+  it('accepts and identifies HEIC/HEIF by MIME or extension', () => {
+    expect(validateImageFile(file(1024, 'image/heic', 'phone.heic'))).toBeNull();
+    expect(validateImageFile(file(1024, '', 'phone.HEIF'))).toBeNull();
+    expect(isHeicImageFile(file(1024, 'image/heif', 'phone.bin'))).toBe(true);
+    expect(isHeicImageFile(file(1024, '', 'phone.HEIC'))).toBe(true);
   });
 
   it('rejects SVG (stored-XSS defense, mirrors server whitelist)', () => {
     expect(validateImageFile(file(100, 'image/svg+xml'))).toContain('JPEG');
+  });
+});
+
+describe('workshop validation UX helpers', () => {
+  it('finds the first error in visual page order, not object insertion order', () => {
+    expect(firstWorkshopErrorField({ differences: 'missing', imageA: 'missing' })).toBe('imageA');
+    expect(firstWorkshopErrorField({ imageB: 'missing', authorName: 'missing' })).toBe('authorName');
+    expect(firstWorkshopErrorField({})).toBeNull();
+  });
+
+  it('derives the three checklist groups from current values', () => {
+    expect(workshopCompletion(VALID)).toEqual({ basicInfo: true, images: true, differences: true });
+    expect(workshopCompletion({ ...VALID, title: '', imageBName: null, differences: [] })).toEqual({
+      basicInfo: false,
+      images: false,
+      differences: false,
+    });
+  });
+
+  it('marks a single image complete in find-area mode', () => {
+    expect(workshopCompletion({ ...VALID, mode: 'find_area', imageBName: null }).images).toBe(true);
   });
 });
 

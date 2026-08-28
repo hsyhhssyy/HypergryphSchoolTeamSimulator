@@ -13,8 +13,9 @@
  * back with differenceMarkerStyle — the same marker math the game uses.
  *
  * Validation is client-side FIRST (inline errors, no API call when invalid):
- * ≥1 difference, images ≤ 5MB, author_name 2-20 chars, title/description
- * 1-200 chars, spot_diff requires image_b. The server re-validates (todo 16).
+ * ≥1 difference, author_name 2-20 chars, title/description 1-200 chars,
+ * spot_diff requires image_b. Phone originals are normalized to a supported
+ * upload format below 5 MiB before the server re-validates (todo 16).
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { CSSProperties, JSX } from 'preact';
@@ -32,14 +33,30 @@ import { submitWorkshopQuestion } from '@/lib/api';
 import { friendlyErrorMessage } from '@/lib/friendlyError';
 import { getOrCreateUserId } from '@/lib/userId';
 import { ImageAdjustDialog, type AdjustableImage } from '@/components/ImageAdjustDialog';
+import {
+  MAX_PROCESSED_IMAGE_BYTES,
+  outputSizeForCrop,
+  renderCroppedFile,
+} from '@/utils/imageProcessing';
 
 // --- Pure validation & geometry helpers (exported for unit tests) --------
 
 /** Client-side mirror of the server's 5MB cap (todo 16). */
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = MAX_PROCESSED_IMAGE_BYTES;
 
-/** Raster-only whitelist mirroring the server (SVG rejected — stored-XSS defense). */
-export const ACCEPTED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+/** Protect mobile tabs from decoding exceptionally large source files. */
+export const MAX_SOURCE_IMAGE_BYTES = 40 * 1024 * 1024;
+
+/** Input formats. HEIC/HEIF are converted locally and never sent as-is. */
+export const ACCEPTED_IMAGE_MIME = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
+const ACCEPTED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
 
 /** Drag threshold in DISPLAY px — a press moving less than this is a click. */
 export const DRAG_THRESHOLD_PX = 10;
@@ -49,9 +66,22 @@ export const DEFAULT_RADIUS = 30;
 
 /** Validate an upload candidate client-side; returns an error message or null. */
 export function validateImageFile(file: File): string | null {
-  if (file.size > MAX_IMAGE_BYTES) return '图片不能超过 5MB';
-  if (!ACCEPTED_IMAGE_MIME.includes(file.type)) return '仅支持 JPEG / PNG / WebP 图片';
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) return '原图不能超过 40MB';
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const unknownMime = file.type === '' || file.type === 'application/octet-stream';
+  if (
+    !ACCEPTED_IMAGE_MIME.includes(file.type)
+    && !(unknownMime && ACCEPTED_IMAGE_EXTENSIONS.includes(extension))
+  ) {
+    return '仅支持 JPEG / PNG / WebP / HEIC 图片';
+  }
   return null;
+}
+
+export function isHeicImageFile(file: File): boolean {
+  return file.type === 'image/heic'
+    || file.type === 'image/heif'
+    || /\.(?:heic|heif)$/i.test(file.name);
 }
 
 /**
@@ -128,6 +158,22 @@ export interface WorkshopFormErrors {
   differences?: string;
 }
 
+export type WorkshopErrorField = keyof WorkshopFormErrors;
+
+/** Visual page order, deliberately independent from object insertion order. */
+export const WORKSHOP_ERROR_ORDER: readonly WorkshopErrorField[] = [
+  'title',
+  'description',
+  'authorName',
+  'imageA',
+  'imageB',
+  'differences',
+];
+
+export function firstWorkshopErrorField(errors: WorkshopFormErrors): WorkshopErrorField | null {
+  return WORKSHOP_ERROR_ORDER.find((field) => errors[field] !== undefined) ?? null;
+}
+
 /**
  * Client-side validation mirroring the server (todo 16): title/description
  * 1-200 chars (description is the 题目描述 instruction text, REQUIRED),
@@ -156,6 +202,23 @@ export function validateWorkshopForm(values: WorkshopFormValues): WorkshopFormEr
   return errors;
 }
 
+export interface WorkshopCompletion {
+  basicInfo: boolean;
+  images: boolean;
+  differences: boolean;
+}
+
+export function workshopCompletion(values: WorkshopFormValues): WorkshopCompletion {
+  const validation = validateWorkshopForm(values);
+  return {
+    basicInfo: validation.title === undefined
+      && validation.description === undefined
+      && validation.authorName === undefined,
+    images: validation.imageA === undefined && validation.imageB === undefined,
+    differences: validation.differences === undefined,
+  };
+}
+
 // --- Component -----------------------------------------------------------
 
 type ImageFile = AdjustableImage;
@@ -179,6 +242,16 @@ interface ToastState {
   message: string;
 }
 
+function imageStatus(image: ImageFile, optimized: boolean): string {
+  const type = image.file.type === 'image/png'
+    ? 'PNG'
+    : image.file.type === 'image/webp'
+      ? 'WebP'
+      : 'JPEG';
+  const size = `${(image.file.size / (1024 * 1024)).toFixed(1)}MB`;
+  return optimized ? `已自动优化：${type} · ${size}` : `已就绪：${type} · ${size}`;
+}
+
 function clampNative(point: Point, naturalW: number, naturalH: number): Point {
   return {
     x: Math.min(Math.max(point.x, 0), naturalW),
@@ -190,33 +263,76 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
+function loadBrowserImage(file: File): Promise<ImageFile> {
+  const objectUrl = URL.createObjectURL(file);
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve(typeof reader.result === 'string' ? reader.result : '');
-    };
-    reader.onerror = () => reject(new Error('图片读取失败'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function readImageFile(file: File): Promise<ImageFile> {
-  return readFileAsDataUrl(file).then((dataUrl) => new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve({
       originalFile: file,
-      originalUrl: dataUrl,
+      originalUrl: objectUrl,
       file,
-      dataUrl,
+      dataUrl: objectUrl,
       width: image.naturalWidth,
       height: image.naturalHeight,
       originalWidth: image.naturalWidth,
       originalHeight: image.naturalHeight,
     });
-    image.onerror = () => reject(new Error('图片读取失败'));
-    image.src = dataUrl;
-  }));
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('图片读取失败'));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function convertHeicToJpeg(file: File): Promise<File> {
+  // Kept out of the initial bundle: most visitors never select a HEIC file.
+  const { heicTo } = await import('heic-to/csp');
+  const blob = await heicTo({ blob: file, type: 'image/jpeg', quality: 0.9 });
+  const stem = file.name.replace(/\.[^.]+$/, '') || 'image';
+  return new File([blob], `${stem}.jpg`, { type: 'image/jpeg' });
+}
+
+/** Decode, convert when necessary, and create an upload-safe initial crop. */
+async function readImageFile(file: File): Promise<ImageFile> {
+  let decoded: ImageFile;
+  try {
+    // Safari/iOS can decode HEIC natively, avoiding the large fallback codec.
+    decoded = await loadBrowserImage(file);
+  } catch (error) {
+    if (!isHeicImageFile(file)) throw error;
+    try {
+      decoded = await loadBrowserImage(await convertHeicToJpeg(file));
+    } catch {
+      throw new Error('当前浏览器无法转换这张 HEIC 图片');
+    }
+  }
+
+  const needsNormalization = isHeicImageFile(decoded.originalFile)
+    || decoded.file.size >= MAX_IMAGE_BYTES
+    || Math.max(decoded.width, decoded.height) > 1920
+    || !['image/jpeg', 'image/png', 'image/webp'].includes(decoded.file.type);
+  if (!needsNormalization) return decoded;
+
+  const output = outputSizeForCrop({
+    x: 0,
+    y: 0,
+    width: decoded.originalWidth,
+    height: decoded.originalHeight,
+  });
+  try {
+    const rendered = await renderCroppedFile(
+      decoded.originalUrl,
+      { x: 0, y: 0, width: decoded.originalWidth, height: decoded.originalHeight },
+      output,
+      decoded.originalFile.name,
+      decoded.originalFile.type,
+    );
+    return { ...decoded, ...rendered };
+  } catch (error) {
+    if (decoded.originalUrl.startsWith('blob:')) URL.revokeObjectURL(decoded.originalUrl);
+    throw error;
+  }
 }
 
 function descriptionOf(difference: Difference): string {
@@ -259,7 +375,10 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [sliderRadius, setSliderRadius] = useState(DEFAULT_RADIUS);
   const [errors, setErrors] = useState<WorkshopFormErrors>({});
+  const [validationActive, setValidationActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [processingImage, setProcessingImage] = useState<'imageA' | 'imageB' | null>(null);
+  const [imageStatuses, setImageStatuses] = useState<Partial<Record<'imageA' | 'imageB', string>>>({});
   const [toast, setToast] = useState<ToastState | null>(null);
   const [geometry, setGeometry] = useState<EditorGeometry | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -269,11 +388,15 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const toastTimer = useRef<number | null>(null);
+  const objectUrls = useRef(new Set<string>());
+  const submitInFlight = useRef(false);
 
   // Toast auto-dismiss; timer cleared on unmount (no leak).
   useEffect(() => {
     return () => {
       if (toastTimer.current !== null) clearTimeout(toastTimer.current);
+      for (const url of objectUrls.current) URL.revokeObjectURL(url);
+      objectUrls.current.clear();
     };
   }, []);
 
@@ -283,27 +406,61 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   };
 
-  /** Set one field + clear its inline error (error disappears as user fixes). */
-  const updateField = <K extends keyof WorkshopFormErrors>(
-    field: K,
-    value: string,
-    setter: (value: string) => void,
-  ): void => {
-    setter(value);
+  const currentFormValues = (overrides: Partial<WorkshopFormValues> = {}): WorkshopFormValues => ({
+    mode,
+    title,
+    description,
+    authorName,
+    imageAName: processingImage === 'imageA' ? null : imageA?.file.name ?? null,
+    imageBName: processingImage === 'imageB' ? null : imageB?.file.name ?? null,
+    differences,
+    ...overrides,
+  });
+
+  const setFieldError = (field: WorkshopErrorField, message: string | undefined): void => {
     setErrors((prev) => {
-      if (prev[field] === undefined) return prev;
+      if (prev[field] === message) return prev;
       const next = { ...prev };
-      delete next[field];
+      if (message === undefined) delete next[field];
+      else next[field] = message;
       return next;
     });
   };
 
+  /** Revalidate a text error while typing; first-time errors appear on blur. */
+  const updateField = (
+    field: 'title' | 'description' | 'authorName',
+    value: string,
+    setter: (value: string) => void,
+  ): void => {
+    setter(value);
+    if (validationActive || errors[field] !== undefined) {
+      setFieldError(field, validateWorkshopForm(currentFormValues({ [field]: value }))[field]);
+    }
+  };
+
+  const validateTextField = (field: 'title' | 'description' | 'authorName'): void => {
+    setFieldError(field, validateWorkshopForm(currentFormValues())[field]);
+  };
+
+  // Once submit has been attempted, every edit keeps all inline errors and the
+  // nearby summary synchronized without requiring another button press.
+  useEffect(() => {
+    if (!validationActive) return;
+    setErrors(validateWorkshopForm(currentFormValues()));
+  }, [validationActive, mode, title, description, authorName, imageA, imageB, differences, processingImage]);
+
   const applyImage = (which: 'imageA' | 'imageB', value: ImageFile | null, error: string | null): void => {
     if (error !== null) {
       setErrors((prev) => ({ ...prev, [which]: error }));
+      showToast('error', error);
       return;
     }
     if (which === 'imageA') {
+      if (imageA !== null && imageA.originalUrl !== value?.originalUrl && imageA.originalUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imageA.originalUrl);
+        objectUrls.current.delete(imageA.originalUrl);
+      }
       setImageA(value);
       // A new base image invalidates previously authored native coords.
       if (value !== null) {
@@ -311,6 +468,10 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
         setSelectedIndex(null);
       }
     } else {
+      if (imageB !== null && imageB.originalUrl !== value?.originalUrl && imageB.originalUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imageB.originalUrl);
+        objectUrls.current.delete(imageB.originalUrl);
+      }
       setImageB(value);
     }
     setErrors((prev) => {
@@ -330,14 +491,31 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
       applyImage(which, null, error);
       return;
     }
+    const currentPoints = differences.length;
+    if (
+      which === 'imageA'
+      && currentPoints > 0
+      && !window.confirm(`更换图片将清除当前 ${currentPoints} 个标记区域，是否继续？`)
+    ) return;
+
+    setProcessingImage(which);
     readImageFile(file)
       .then((value) => {
-        const currentPoints = differences.length;
-        if (which === 'imageA' && currentPoints > 0 && !window.confirm(`更换图片将清除当前 ${currentPoints} 个标记区域，是否继续？`)) return;
+        if (value.originalUrl.startsWith('blob:')) objectUrls.current.add(value.originalUrl);
         applyImage(which, value, null);
+        const optimized = value.file.name !== file.name
+          || value.file.type !== file.type
+          || value.file.size !== file.size;
+        setImageStatuses((prev) => ({ ...prev, [which]: imageStatus(value, optimized) }));
         setAdjusting(which);
       })
-      .catch(() => applyImage(which, null, '图片读取失败'));
+      .catch((reason: unknown) => {
+        const message = reason instanceof Error && reason.message.includes('HEIC')
+          ? reason.message
+          : '图片处理失败，请重试';
+        applyImage(which, null, message);
+      })
+      .finally(() => setProcessingImage(null));
   };
 
   /** Same measurement pattern as ImagePanel — live box + contain transform.
@@ -404,6 +582,9 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
       if (prev === null || prev === index) return null;
       return prev > index ? prev - 1 : prev;
     });
+    if (next.length === 0) {
+      setFieldError('differences', '请至少添加一个差异区域（点击或拖动画出）');
+    }
   };
 
   const handleOverlayPointerDown = (event: PointerEvent): void => {
@@ -491,19 +672,43 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
     }
   };
 
+  const focusFirstError = (validation: WorkshopFormErrors): void => {
+    const field = firstWorkshopErrorField(validation);
+    if (field === null) return;
+    const targetIds: Record<WorkshopErrorField, string> = {
+      title: 'workshop-title',
+      description: 'workshop-desc',
+      authorName: 'workshop-author',
+      imageA: 'workshop-image-a-field',
+      imageB: 'workshop-image-b-field',
+      differences: 'workshop-differences-field',
+    };
+    const target = document.getElementById(targetIds[field]);
+    if (!(target instanceof HTMLElement)) return;
+    // Focus synchronously while the iOS tap gesture is still active, then
+    // scroll after Preact has painted the new inline error.
+    target.focus({ preventScroll: true });
+    window.requestAnimationFrame(() => {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' });
+    });
+  };
+
   const handleSubmit = (event: JSX.TargetedEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    const validation = validateWorkshopForm({
-      mode,
-      title,
-      description,
-      authorName,
-      imageAName: imageA?.file.name ?? null,
-      imageBName: imageB?.file.name ?? null,
-      differences,
-    });
+    if (submitInFlight.current) return;
+    const values = currentFormValues();
+    const validation = validateWorkshopForm(values);
+    if (processingImage !== null) validation[processingImage] = '图片正在处理，请稍候';
+    setValidationActive(true);
     setErrors(validation);
-    if (Object.keys(validation).length > 0) return; // inline errors, NO API call
+    if (Object.keys(validation).length > 0) {
+      const completion = workshopCompletion(values);
+      const incompleteGroups = Object.values(completion).filter((complete) => !complete).length;
+      showToast('error', `还有 ${incompleteGroups} 组内容未完成，请查看标红内容`);
+      focusFirstError(validation);
+      return; // inline errors, NO API call
+    }
 
     const formData = new FormData();
     formData.set('mode', mode);
@@ -516,6 +721,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
     if (imageA !== null) formData.set('image_a', imageA.file);
     if (mode === 'spot_diff' && imageB !== null) formData.set('image_b', imageB.file);
 
+    submitInFlight.current = true;
     setSubmitting(true);
     submitWorkshopQuestion(formData)
       .then(({ id }) => showToast('success', `投稿成功！题目 ID：${id}`))
@@ -523,11 +729,18 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
         console.error('投稿失败:', err);
         showToast('error', friendlyErrorMessage(err, '上传失败，请重试'));
       })
-      .finally(() => setSubmitting(false));
+      .finally(() => {
+        submitInFlight.current = false;
+        setSubmitting(false);
+      });
   };
 
   const selected = selectedIndex !== null ? differences[selectedIndex] : undefined;
   const activeImageA = imageA !== null;
+  const formValues = currentFormValues();
+  const completion = workshopCompletion(formValues);
+  const incompleteGroups = Object.values(completion).filter((complete) => !complete).length;
+  const errorCount = Object.keys(errors).length;
 
   return (
     <main className="screen workshop-screen">
@@ -553,7 +766,11 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
                   key={opt.mode}
                   className={`mode-card${active ? ' mode-card--active' : ''}`}
                   aria-pressed={active}
-                  onClick={() => { setMode(opt.mode); setEditorView('imageA'); }}
+                  onClick={() => {
+                    setMode(opt.mode);
+                    setEditorView('imageA');
+                    if (opt.mode === 'find_area') setFieldError('imageB', undefined);
+                  }}
                 >
                   <span className="mode-card__label">{opt.label}</span>
                   <span className="mode-card__desc">{opt.desc}</span>
@@ -570,7 +787,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
         <section className="card workshop-fields">
           <div className="field">
             <label className="field__label" htmlFor="workshop-title">
-              题目标题
+              题目标题 <span className="field__required">必填</span>
             </label>
             <input
               id="workshop-title"
@@ -579,11 +796,15 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               maxLength={200}
               placeholder="例如：找出图片中的 5 处不同"
               value={title}
+              required
+              aria-required="true"
               aria-invalid={errors.title !== undefined}
+              aria-describedby={errors.title === undefined ? undefined : 'workshop-title-error'}
               onInput={(e) => updateField('title', e.currentTarget.value, setTitle)}
+              onBlur={() => validateTextField('title')}
             />
             {errors.title !== undefined && (
-              <p role="alert" className="field__error">
+              <p id="workshop-title-error" role="alert" className="field__error">
                 {errors.title}
               </p>
             )}
@@ -591,7 +812,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
 
           <div className="field">
             <label className="field__label" htmlFor="workshop-desc">
-              题目描述 <span className="field__required">（必填）</span>
+              题目描述 <span className="field__required">必填</span>
             </label>
             <textarea
               id="workshop-desc"
@@ -600,11 +821,15 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               maxLength={200}
               placeholder="给玩家的提示语，例如：找出两张图中的不同之处"
               value={description}
+              required
+              aria-required="true"
               aria-invalid={errors.description !== undefined}
+              aria-describedby={errors.description === undefined ? undefined : 'workshop-desc-error'}
               onInput={(e) => updateField('description', e.currentTarget.value, setDescription)}
+              onBlur={() => validateTextField('description')}
             />
             {errors.description !== undefined && (
-              <p role="alert" className="field__error">
+              <p id="workshop-desc-error" role="alert" className="field__error">
                 {errors.description}
               </p>
             )}
@@ -612,7 +837,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
 
           <div className="field">
             <label className="field__label" htmlFor="workshop-author">
-              昵称
+              昵称 <span className="field__required">必填</span>
             </label>
             <input
               id="workshop-author"
@@ -621,11 +846,15 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               maxLength={20}
               placeholder="2-20 个字符"
               value={authorName}
+              required
+              aria-required="true"
               aria-invalid={errors.authorName !== undefined}
+              aria-describedby={errors.authorName === undefined ? undefined : 'workshop-author-error'}
               onInput={(e) => updateField('authorName', e.currentTarget.value, setAuthorName)}
+              onBlur={() => validateTextField('authorName')}
             />
             {errors.authorName !== undefined && (
-              <p role="alert" className="field__error">
+              <p id="workshop-author-error" role="alert" className="field__error">
                 {errors.authorName}
               </p>
             )}
@@ -656,25 +885,43 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
           </div>
         </section>
 
-        {/* Image uploads — FileReader preview */}
+        {/* Image uploads — local conversion/compression + preview */}
         <section className="card workshop-uploads" aria-label="图片上传">
           <h2 className="menu__heading">图片</h2>
+          <p id="workshop-image-rules" className="workshop-hint">
+            支持 JPEG、PNG、WebP 和 iPhone HEIC；大图会自动转换并压缩至 5MB 内（原图最大 40MB）。
+          </p>
 
-          <div className="field">
-            <span className="field__label">图片 A（基准图）</span>
-            <label className="btn btn--secondary workshop-upload__trigger">
+          <div id="workshop-image-a-field" className="field workshop-error-target" tabIndex={-1}>
+            <span className="field__label">
+              图片 A（基准图） <span className="field__required">必填</span>
+            </span>
+            <label htmlFor="workshop-image-a" className="btn btn--secondary workshop-upload__trigger">
               <input
+                id="workshop-image-a"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                 className="workshop-upload__input"
+                required
+                aria-required="true"
+                aria-invalid={errors.imageA !== undefined}
+                aria-describedby={`workshop-image-rules${errors.imageA === undefined ? '' : ' workshop-image-a-error'}`}
+                disabled={processingImage !== null}
                 onChange={handleImageChange('imageA')}
               />
-              <span>{imageA === null ? '选择图片 A' : '重新选择图片 A'}</span>
+              <span>
+                {processingImage === 'imageA'
+                  ? '正在处理图片 A…'
+                  : imageA === null ? '选择图片 A' : '重新选择图片 A'}
+              </span>
             </label>
             {errors.imageA !== undefined && (
-              <p role="alert" className="field__error">
+              <p id="workshop-image-a-error" role="alert" className="field__error">
                 {errors.imageA}
               </p>
+            )}
+            {imageStatuses.imageA !== undefined && (
+              <p className="workshop-upload__status">✓ {imageStatuses.imageA}</p>
             )}
             {imageA !== null && (
               <div className="workshop-image-actions">
@@ -687,21 +934,36 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
           </div>
 
           {mode === 'spot_diff' && (
-            <div className="field">
-              <span className="field__label">图片 B（找不同模式必填）</span>
-              <label className="btn btn--secondary workshop-upload__trigger">
+            <div id="workshop-image-b-field" className="field workshop-error-target" tabIndex={-1}>
+              <span className="field__label">
+                图片 B（对照图） <span className="field__required">必填</span>
+              </span>
+              <label htmlFor="workshop-image-b" className="btn btn--secondary workshop-upload__trigger">
                 <input
+                  id="workshop-image-b"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                   className="workshop-upload__input"
+                  required
+                  aria-required="true"
+                  aria-invalid={errors.imageB !== undefined}
+                  aria-describedby={`workshop-image-rules${errors.imageB === undefined ? '' : ' workshop-image-b-error'}`}
+                  disabled={processingImage !== null}
                   onChange={handleImageChange('imageB')}
                 />
-                <span>{imageB === null ? '选择图片 B' : '重新选择图片 B'}</span>
+                <span>
+                  {processingImage === 'imageB'
+                    ? '正在处理图片 B…'
+                    : imageB === null ? '选择图片 B' : '重新选择图片 B'}
+                </span>
               </label>
               {errors.imageB !== undefined && (
-                <p role="alert" className="field__error">
+                <p id="workshop-image-b-error" role="alert" className="field__error">
                   {errors.imageB}
                 </p>
+              )}
+              {imageStatuses.imageB !== undefined && (
+                <p className="workshop-upload__status">✓ {imageStatuses.imageB}</p>
               )}
               {imageB !== null && (
                 <div className="workshop-upload__preview">
@@ -716,8 +978,12 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
         {/* Differences editor — tap circle / drag rect over the live preview */}
         {activeImageA && (
           <section
+            id="workshop-differences-field"
             className="card workshop-editor"
             aria-labelledby="workshop-editor-heading"
+            aria-invalid={errors.differences !== undefined}
+            aria-describedby={errors.differences === undefined ? undefined : 'workshop-differences-error'}
+            tabIndex={-1}
             onAnimationEnd={(e) => {
               // The card's own `pop` entry animation (transform-only, scale
               // 0.85→1) skews getBoundingClientRect mid-flight; the img may
@@ -731,7 +997,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
             }}
           >
             <h2 id="workshop-editor-heading" className="menu__heading">
-              添加差异区域
+              添加差异区域 <span className="field__required">必填</span>
             </h2>
             <p className="workshop-hint">点击图片放置圆形区域 · 按住拖动绘制矩形区域</p>
             {mode === 'spot_diff' && imageB !== null && (
@@ -741,7 +1007,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               </div>
             )}
             {errors.differences !== undefined && (
-              <p role="alert" className="field__error">
+              <p id="workshop-differences-error" role="alert" className="field__error">
                 {errors.differences}
               </p>
             )}
@@ -846,6 +1112,44 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
           </section>
         )}
 
+        <section className="card workshop-readiness" aria-labelledby="workshop-readiness-heading">
+          <h2 id="workshop-readiness-heading" className="menu__heading">提交前检查</h2>
+          <ul className="workshop-readiness__list" aria-live="polite">
+            <li className={completion.basicInfo ? 'workshop-readiness__item workshop-readiness__item--complete' : 'workshop-readiness__item'}>
+              <span className="workshop-readiness__icon" aria-hidden="true">{completion.basicInfo ? '✓' : '!'}</span>
+              <span>
+                <strong>基本信息</strong>
+                <small>{completion.basicInfo ? '已完成' : '请填写标题、描述和昵称'}</small>
+              </span>
+            </li>
+            <li className={completion.images ? 'workshop-readiness__item workshop-readiness__item--complete' : 'workshop-readiness__item'}>
+              <span className="workshop-readiness__icon" aria-hidden="true">{completion.images ? '✓' : '!'}</span>
+              <span>
+                <strong>所需图片</strong>
+                <small>
+                  {completion.images
+                    ? '已完成'
+                    : processingImage !== null
+                      ? '图片正在处理'
+                      : mode === 'spot_diff' ? '请上传图片 A 和 B' : '请上传图片 A'}
+                </small>
+              </span>
+            </li>
+            <li className={completion.differences ? 'workshop-readiness__item workshop-readiness__item--complete' : 'workshop-readiness__item'}>
+              <span className="workshop-readiness__icon" aria-hidden="true">{completion.differences ? '✓' : '!'}</span>
+              <span>
+                <strong>差异区域</strong>
+                <small>{completion.differences ? `已添加 ${differences.length} 个区域` : '请至少添加 1 个区域'}</small>
+              </span>
+            </li>
+          </ul>
+          {validationActive && errorCount > 0 && (
+            <div className="workshop-validation-summary" role="alert">
+              还有 {incompleteGroups} 组内容未完成，请根据上方标红提示修正。
+            </div>
+          )}
+        </section>
+
         <button
           type="submit"
           className="btn btn--primary workshop-form__submit"
@@ -856,7 +1160,11 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
       </form>
 
       {toast !== null && (
-        <div role="status" className={`toast toast--${toast.kind}`}>
+        <div
+          role={toast.kind === 'error' ? 'alert' : 'status'}
+          aria-live={toast.kind === 'error' ? 'assertive' : 'polite'}
+          className={`toast toast--${toast.kind}`}
+        >
           {toast.message}
         </div>
       )}
@@ -867,6 +1175,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
           onCancel={() => setAdjusting(null)}
           onApply={(next) => {
             setImageA(next);
+            setImageStatuses((prev) => ({ ...prev, imageA: imageStatus(next, true) }));
             setDifferences([]);
             setSelectedIndex(null);
             setGeometry(null);
@@ -882,7 +1191,12 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
           fixedOutput={{ width: imageA.width, height: imageA.height }}
           title="裁切与校准图片 B"
           onCancel={() => setAdjusting(null)}
-          onApply={(next) => { setImageB(next); setEditorView('imageA'); setAdjusting(null); }}
+          onApply={(next) => {
+            setImageB(next);
+            setImageStatuses((prev) => ({ ...prev, imageB: imageStatus(next, true) }));
+            setEditorView('imageA');
+            setAdjusting(null);
+          }}
         />
       )}
     </main>

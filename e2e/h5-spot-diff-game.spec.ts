@@ -94,6 +94,32 @@ function generatePng(width: number, height: number, variant = 0): Buffer {
   ]);
 }
 
+/** Deterministic high-entropy PNG used to prove >5 MiB phone originals compress. */
+function generateLargePng(width: number, height: number): Buffer {
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const raw = Buffer.alloc((1 + width * 3) * height);
+  let value = 0x12345678;
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * (1 + width * 3);
+    raw[rowStart] = 0;
+    for (let x = 0; x < width * 3; x++) {
+      value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
+      raw[rowStart + 1 + x] = value >>> 24;
+    }
+  }
+  return Buffer.concat([
+    signature,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw, { level: 1 })),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 /** The 800×600 fixtures — same dims as every official seed image. */
 const PNG_800x600 = generatePng(800, 600, 0);
 const PNG_800x600_VARIANT = generatePng(800, 600, 7);
@@ -713,6 +739,79 @@ test.describe('h5-spot-diff-game full E2E', () => {
       width: (node as HTMLImageElement).naturalWidth,
       height: (node as HTMLImageElement).naturalHeight,
     }))).toEqual({ width: 200, height: 100 });
+  });
+
+  test('8d. workshop invalid submit stays actionable, summarizes gaps, and focuses the first error', async ({ page }) => {
+    let requests = 0;
+    await page.route('**/api/workshop', async (route) => {
+      requests += 1;
+      await route.fulfill({ status: 201, json: { id: 'should-not-submit' } });
+    });
+    await page.goto('/');
+    await tapLocator(page, page.locator('.menu__workshop'));
+
+    const submit = page.locator('.workshop-form__submit');
+    await expect(submit).toBeEnabled();
+    await expect(page.locator('.workshop-readiness__item')).toHaveCount(3);
+    await expect(page.locator('.workshop-readiness__item--complete')).toHaveCount(0);
+    await expect(page.getByText('JPEG、PNG、WebP 和 iPhone HEIC')).toBeVisible();
+    for (const label of ['题目标题', '题目描述', '昵称', '图片 A（基准图）', '图片 B（对照图）']) {
+      await expect(page.locator('.field__label', { hasText: label }).getByText('必填', { exact: true })).toBeVisible();
+    }
+
+    await submit.scrollIntoViewIfNeeded();
+    await tapLocator(page, submit);
+    expect(requests).toBe(0);
+    await expect(page.locator('.toast--error')).toContainText('还有 3 组内容未完成');
+    await expect(page.locator('#workshop-title')).toBeFocused();
+    await expect.poll(async () => {
+      const box = await page.locator('#workshop-title').boundingBox();
+      return box !== null && box.y >= 0 && box.y + box.height <= 812;
+    }).toBe(true);
+
+    await page.fill('#workshop-title', '测试题');
+    await page.fill('#workshop-desc', '找出不同');
+    await page.fill('#workshop-author', '小明');
+    await page.locator('#workshop-author').blur();
+    await expect(page.locator('.workshop-readiness__item--complete')).toHaveCount(1);
+    await expect(submit).toBeEnabled();
+  });
+
+  test('8e. >5MiB PNG is optimized before state and remains safe when crop is cancelled', async ({ page }) => {
+    const largePng = generateLargePng(1400, 1400);
+    expect(largePng.byteLength).toBeGreaterThan(5 * 1024 * 1024);
+    let submittedBody: Buffer | null = null;
+    await page.route('**/api/workshop', async (route) => {
+      submittedBody = route.request().postDataBuffer();
+      await route.fulfill({ status: 201, json: { id: 'compressed-e2e' } });
+    });
+
+    await page.goto('/');
+    await tapLocator(page, page.locator('.menu__workshop'));
+    await tapLocator(page, page.locator('.mode-card', { hasText: '区域识别' }));
+    await page.fill('#workshop-title', '大图压缩测试');
+    await page.fill('#workshop-desc', '验证手机大图自动处理');
+    await page.fill('#workshop-author', '测试员');
+    await page.locator('#workshop-image-a').setInputFiles({
+      name: 'large.png',
+      mimeType: 'image/png',
+      buffer: largePng,
+    });
+    const dialog = page.getByRole('dialog', { name: '裁切图片 A' });
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    await tapLocator(page, dialog.getByRole('button', { name: '取消' }));
+    await expect(page.locator('.workshop-upload__status')).toContainText('已自动优化');
+
+    const overlay = page.locator('.workshop-editor__overlay');
+    await expect(overlay).toBeVisible();
+    await overlay.click({ position: { x: 100, y: 100 } });
+    await tapLocator(page, page.locator('.workshop-form__submit'));
+    await expect(page.locator('.toast--success')).toContainText('投稿成功');
+    expect(submittedBody).not.toBeNull();
+    // 4.8 MiB image target leaves room for multipart fields under 5 MiB.
+    expect(submittedBody!.byteLength).toBeLessThan(5 * 1024 * 1024);
+    const multipartHead = submittedBody!.subarray(0, Math.min(submittedBody!.length, 4096)).toString('latin1');
+    expect(multipartHead).toContain('name="mode"');
   });
 
   test.describe.serial('workshop loop (auto-approve, no admin step)', () => {
