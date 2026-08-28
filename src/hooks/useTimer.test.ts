@@ -210,6 +210,16 @@ describe('useTimer', () => {
     expect(result.current.timeLeft).toBe(15);
   });
 
+  it('addTime(s) never exceeds maxSeconds', () => {
+    const { result } = renderHook(() =>
+      useTimer({ initialSeconds: 118, maxSeconds: 120 }),
+    );
+    act(() => {
+      result.current.addTime(10);
+    });
+    expect(result.current.timeLeft).toBe(120);
+  });
+
   it('reset() restores initialSeconds and stops the timer', () => {
     // Given: a running 3s timer, 2s elapsed. When: reset().
     const { result } = renderHook(() => useTimer({ initialSeconds: 3 }));

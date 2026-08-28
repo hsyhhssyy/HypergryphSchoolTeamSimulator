@@ -9,7 +9,11 @@
  *   image loads (`img.onload` + `getBoundingClientRect` + a ResizeObserver),
  *   so `object-fit: contain` letterboxing is always accounted for — never
  *   `offsetWidth/naturalWidth` shortcuts.
- * - Taps go native via `toNativeCoords` → `findHitDifference` → onHit/onMiss.
+ * - Pointer movement is classified before judging: a vertical swipe scrolls
+ *   the page, while only a short press/release becomes a tap.
+ * - Taps re-read the LIVE viewport rect on pointerup, then go native via
+ *   `toNativeCoords` → `findHitDifference` → onHit/onMiss. This keeps the
+ *   mapping correct after page scroll, which does not fire ResizeObserver.
  *
  * NO Canvas. NO hardcoded image dimensions.
  */
@@ -40,10 +44,33 @@ export interface ImagePanelProps {
   disabled: boolean;
 }
 
+/** Display-pixel movement that turns a press into a gesture instead of a tap. */
+export const TAP_MOVE_THRESHOLD_PX = 10;
+
+/** Pure gesture classifier: once the pointer reaches the threshold, cancel. */
+export function exceedsTapMoveThreshold(
+  startX: number,
+  startY: number,
+  currentX: number,
+  currentY: number,
+  threshold = TAP_MOVE_THRESHOLD_PX,
+): boolean {
+  const dx = currentX - startX;
+  const dy = currentY - startY;
+  return dx * dx + dy * dy >= threshold * threshold;
+}
+
 /** Fresh measurement: the element box (viewport-relative) + contain transform. */
 interface Geometry {
   rect: ElementRect;
   transform: ContainTransform;
+}
+
+interface PointerGesture {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
 }
 
 /** Element-relative marker box in display px (numbers; Preact appends px). */
@@ -113,17 +140,18 @@ function ImagePanelInner({
   disabled,
 }: ImagePanelProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const pointerGestureRef = useRef<PointerGesture | null>(null);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
 
-  /** Re-measure the img element box and recompute the contain transform. */
-  const syncGeometry = useCallback(() => {
+  /** Read the LIVE box + contain transform without relying on stored state. */
+  const readGeometry = useCallback((): Geometry | null => {
     const img = imgRef.current;
-    if (!img || img.naturalWidth === 0) return;
+    if (!img || img.naturalWidth === 0) return null;
     const rect = img.getBoundingClientRect();
     // Not laid out yet (display:none / 0 box) — wait for a later resize.
-    if (rect.width === 0 || rect.height === 0) return;
-    setGeometry({
+    if (rect.width === 0 || rect.height === 0) return null;
+    return {
       rect: { left: rect.left, top: rect.top },
       transform: computeContainTransform(
         img.naturalWidth,
@@ -131,8 +159,14 @@ function ImagePanelInner({
         rect.width,
         rect.height,
       ),
-    });
+    };
   }, []);
+
+  /** Re-measure for marker rendering after load/resize. */
+  const syncGeometry = useCallback(() => {
+    const next = readGeometry();
+    if (next !== null) setGeometry(next);
+  }, [readGeometry]);
 
   const handleLoad = useCallback(() => {
     syncGeometry();
@@ -161,17 +195,74 @@ function ImagePanelInner({
   }, [syncGeometry]);
 
   const handlePointerDown = (event: PointerEvent) => {
+    pointerGestureRef.current = null;
+    if (
+      disabled ||
+      geometry === null ||
+      event.button !== 0 ||
+      event.isPrimary === false
+    ) {
+      return;
+    }
+    pointerGestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  };
+
+  const handlePointerMove = (event: PointerEvent) => {
+    const gesture = pointerGestureRef.current;
+    if (gesture === null || gesture.pointerId !== event.pointerId || gesture.moved) return;
+    if (
+      exceedsTapMoveThreshold(
+        gesture.startX,
+        gesture.startY,
+        event.clientX,
+        event.clientY,
+      )
+    ) {
+      gesture.moved = true;
+    }
+  };
+
+  const handlePointerUp = (event: PointerEvent) => {
+    const gesture = pointerGestureRef.current;
+    if (gesture === null || gesture.pointerId !== event.pointerId) return;
+    pointerGestureRef.current = null;
+    // Some synthetic inputs and very short browser gestures may deliver the
+    // final displacement only on pointerup, without an intermediate move.
+    const moved =
+      gesture.moved ||
+      exceedsTapMoveThreshold(
+        gesture.startX,
+        gesture.startY,
+        event.clientX,
+        event.clientY,
+      );
+    if (disabled || moved) return;
+
+    // Read left/top and scale at the moment of the tap. Scrolling changes the
+    // viewport-relative rect without triggering ResizeObserver.
+    const liveGeometry = readGeometry();
+    if (liveGeometry === null) return;
     event.preventDefault();
-    if (disabled || geometry === null) return;
     const native = toNativeCoords(
       event.clientX,
       event.clientY,
-      geometry.rect,
-      geometry.transform,
+      liveGeometry.rect,
+      liveGeometry.transform,
     );
     const index = findHitDifference(native, differences, foundIndices);
     if (index >= 0) onHit(index);
     else onMiss();
+  };
+
+  const handlePointerCancel = (event: PointerEvent) => {
+    if (pointerGestureRef.current?.pointerId === event.pointerId) {
+      pointerGestureRef.current = null;
+    }
   };
 
   return (
@@ -221,14 +312,16 @@ function ImagePanelInner({
           onError={handleError}
         />
       )}
-      {/* Full-element overlay captures precision taps; touch-action: none is
-          the reserved .game-surface token (design system section 8). Hidden
-          until the image is actually loaded — never intercepts the retry
-          button, and geometry is null anyway before load. */}
+      {/* Full-element overlay captures taps but permits native vertical pan
+          and pinch zoom. Hidden until the image is actually loaded — never
+          intercepts the retry button, and geometry is null before load. */}
       {imageStatus === 'loaded' && (
         <div
           className="game-surface image-panel-overlay"
           onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
           aria-hidden="true"
         />
       )}

@@ -31,6 +31,7 @@ import { MODE_OPTIONS } from '@/components/Menu';
 import { submitWorkshopQuestion } from '@/lib/api';
 import { friendlyErrorMessage } from '@/lib/friendlyError';
 import { getOrCreateUserId } from '@/lib/userId';
+import { ImageAdjustDialog, type AdjustableImage } from '@/components/ImageAdjustDialog';
 
 // --- Pure validation & geometry helpers (exported for unit tests) --------
 
@@ -157,10 +158,7 @@ export function validateWorkshopForm(values: WorkshopFormValues): WorkshopFormEr
 
 // --- Component -----------------------------------------------------------
 
-interface ImageFile {
-  file: File;
-  dataUrl: string;
-}
+type ImageFile = AdjustableImage;
 
 interface EditorGeometry {
   transform: ContainTransform;
@@ -201,6 +199,24 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('图片读取失败'));
     reader.readAsDataURL(file);
   });
+}
+
+function readImageFile(file: File): Promise<ImageFile> {
+  return readFileAsDataUrl(file).then((dataUrl) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({
+      originalFile: file,
+      originalUrl: dataUrl,
+      file,
+      dataUrl,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      originalWidth: image.naturalWidth,
+      originalHeight: image.naturalHeight,
+    });
+    image.onerror = () => reject(new Error('图片读取失败'));
+    image.src = dataUrl;
+  }));
 }
 
 function descriptionOf(difference: Difference): string {
@@ -247,6 +263,8 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [geometry, setGeometry] = useState<EditorGeometry | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [adjusting, setAdjusting] = useState<'imageA' | 'imageB' | null>(null);
+  const [editorView, setEditorView] = useState<'imageA' | 'imageB'>('imageA');
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -281,6 +299,10 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
   };
 
   const applyImage = (which: 'imageA' | 'imageB', value: ImageFile | null, error: string | null): void => {
+    if (error !== null) {
+      setErrors((prev) => ({ ...prev, [which]: error }));
+      return;
+    }
     if (which === 'imageA') {
       setImageA(value);
       // A new base image invalidates previously authored native coords.
@@ -293,8 +315,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
     }
     setErrors((prev) => {
       const next = { ...prev };
-      if (error === null) delete next[which];
-      else next[which] = error;
+      delete next[which];
       return next;
     });
   };
@@ -309,8 +330,13 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
       applyImage(which, null, error);
       return;
     }
-    readFileAsDataUrl(file)
-      .then((dataUrl) => applyImage(which, { file, dataUrl }, null))
+    readImageFile(file)
+      .then((value) => {
+        const currentPoints = differences.length;
+        if (which === 'imageA' && currentPoints > 0 && !window.confirm(`更换图片将清除当前 ${currentPoints} 个标记区域，是否继续？`)) return;
+        applyImage(which, value, null);
+        setAdjusting(which);
+      })
       .catch(() => applyImage(which, null, '图片读取失败'));
   };
 
@@ -527,7 +553,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
                   key={opt.mode}
                   className={`mode-card${active ? ' mode-card--active' : ''}`}
                   aria-pressed={active}
-                  onClick={() => setMode(opt.mode)}
+                  onClick={() => { setMode(opt.mode); setEditorView('imageA'); }}
                 >
                   <span className="mode-card__label">{opt.label}</span>
                   <span className="mode-card__desc">{opt.desc}</span>
@@ -651,8 +677,11 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               </p>
             )}
             {imageA !== null && (
-              <div className="workshop-upload__preview">
-                <img src={imageA.dataUrl} alt="图片 A 预览" draggable={false} />
+              <div className="workshop-image-actions">
+                <button type="button" className="btn btn--ghost" onClick={() => {
+                  if (differences.length === 0 || window.confirm(`重新裁切将清除当前 ${differences.length} 个标记区域，是否继续？`)) setAdjusting('imageA');
+                }}>重新裁切</button>
+                {mode === 'spot_diff' && imageB !== null && <button type="button" className="btn btn--ghost" onClick={() => setAdjusting('imageB')}>校准图片 B</button>}
               </div>
             )}
           </div>
@@ -677,6 +706,7 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               {imageB !== null && (
                 <div className="workshop-upload__preview">
                   <img src={imageB.dataUrl} alt="图片 B 预览" draggable={false} />
+                  <button type="button" className="btn btn--ghost workshop-upload__adjust" onClick={() => setAdjusting('imageB')}>裁切与校准</button>
                 </div>
               )}
             </div>
@@ -704,6 +734,12 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               添加差异区域
             </h2>
             <p className="workshop-hint">点击图片放置圆形区域 · 按住拖动绘制矩形区域</p>
+            {mode === 'spot_diff' && imageB !== null && (
+              <div className="source-toggle" role="group" aria-label="编辑画布查看图片">
+                <button type="button" className={`source-toggle__option${editorView === 'imageA' ? ' source-toggle--active' : ''}`} aria-pressed={editorView === 'imageA'} onClick={() => setEditorView('imageA')}>图片 A（可标记）</button>
+                <button type="button" className={`source-toggle__option${editorView === 'imageB' ? ' source-toggle--active' : ''}`} aria-pressed={editorView === 'imageB'} onClick={() => setEditorView('imageB')}>图片 B（检查）</button>
+              </div>
+            )}
             {errors.differences !== undefined && (
               <p role="alert" className="field__error">
                 {errors.differences}
@@ -714,20 +750,20 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
               <img
                 ref={imgRef}
                 className="workshop-editor__img"
-                src={imageA.dataUrl}
-                alt="差异编辑基准图"
+                src={editorView === 'imageB' && imageB !== null ? imageB.dataUrl : imageA.dataUrl}
+                alt={editorView === 'imageB' ? '差异检查对照图' : '差异编辑基准图'}
                 draggable={false}
                 onLoad={syncGeometry}
               />
-              <div
-                ref={overlayRef}
-                className="game-surface workshop-editor__overlay"
-                onPointerDown={handleOverlayPointerDown}
-                onPointerMove={handleOverlayPointerMove}
-                onPointerUp={handleOverlayPointerUp}
-                onPointerCancel={() => setDrag(null)}
-                aria-hidden="true"
-              />
+              {editorView === 'imageA' && <div
+                  ref={overlayRef}
+                  className="game-surface workshop-editor__overlay"
+                  onPointerDown={handleOverlayPointerDown}
+                  onPointerMove={handleOverlayPointerMove}
+                  onPointerUp={handleOverlayPointerUp}
+                  onPointerCancel={() => setDrag(null)}
+                  aria-hidden="true"
+                />}
               {geometry !== null &&
                 differences.map((difference, index) => {
                   const style = differenceMarkerStyle(difference, geometry.transform);
@@ -739,8 +775,17 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
                         index === selectedIndex ? ' workshop-marker--selected' : ''
                       }`}
                       style={style}
-                      aria-hidden="true"
-                    />
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`选择第 ${index + 1} 个差异区域`}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => { event.stopPropagation(); setSelectedIndex(index === selectedIndex ? null : index); }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedIndex(index === selectedIndex ? null : index); }
+                      }}
+                    >
+                      {index === selectedIndex && <button type="button" className="workshop-marker__delete" aria-label={`删除第 ${index + 1} 个差异区域`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); removeDifference(index); showToast('success', `已删除区域 #${index + 1}`); }}>×</button>}
+                    </div>
                   );
                 })}
               {drag !== null && drag.currentNative !== null && geometry !== null && (
@@ -814,6 +859,31 @@ export function WorkshopSubmit({ onBack }: WorkshopSubmitProps) {
         <div role="status" className={`toast toast--${toast.kind}`}>
           {toast.message}
         </div>
+      )}
+      {adjusting === 'imageA' && imageA !== null && (
+        <ImageAdjustDialog
+          image={imageA}
+          title="裁切图片 A"
+          onCancel={() => setAdjusting(null)}
+          onApply={(next) => {
+            setImageA(next);
+            setDifferences([]);
+            setSelectedIndex(null);
+            setGeometry(null);
+            if (mode === 'spot_diff' && imageB !== null) setAdjusting('imageB');
+            else setAdjusting(null);
+          }}
+        />
+      )}
+      {adjusting === 'imageB' && imageB !== null && imageA !== null && (
+        <ImageAdjustDialog
+          image={imageB}
+          reference={imageA}
+          fixedOutput={{ width: imageA.width, height: imageA.height }}
+          title="裁切与校准图片 B"
+          onCancel={() => setAdjusting(null)}
+          onApply={(next) => { setImageB(next); setEditorView('imageA'); setAdjusting(null); }}
+        />
       )}
     </main>
   );

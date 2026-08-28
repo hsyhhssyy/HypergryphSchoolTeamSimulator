@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { GameState, QuestionMode, QuestionSourceQuery } from '@shared/types';
 import type { JSX } from 'preact';
 import type { Dispatch } from 'preact/hooks';
@@ -7,7 +7,7 @@ import { useTimer, type TimerControls } from '@/hooks/useTimer';
 import { useLongPress, type LongPressHandlers } from '@/hooks/useLongPress';
 import { AdminReview } from '@/components/AdminReview';
 import { AudioPlayer } from '@/components/AudioPlayer';
-import { GameScreen, QUESTION_TIME_LIMIT } from '@/components/GameScreen';
+import { GAME_TIME_LIMIT, GameScreen } from '@/components/GameScreen';
 import { Menu } from '@/components/Menu';
 import { Result } from '@/components/Result';
 import { WorkshopSubmit } from '@/components/WorkshopSubmit';
@@ -30,6 +30,8 @@ type View = 'game' | 'workshop' | 'admin';
 export function App() {
   const { state, dispatch } = useGameState();
   const [startError, setStartError] = useState<string | null>(null);
+  const [startingMode, setStartingMode] = useState<QuestionMode | null>(null);
+  const startInFlightRef = useRef(false);
   const [view, setView] = useState<View>('game');
   /** Offline detection (todo 24) — banner renders while navigator is offline. */
   const online = useOnlineStatus();
@@ -43,18 +45,23 @@ export function App() {
    * makes a stale fire (after the round already ended) harmless.
    */
   const timer = useTimer({
-    initialSeconds: QUESTION_TIME_LIMIT,
+    initialSeconds: GAME_TIME_LIMIT,
+    maxSeconds: GAME_TIME_LIMIT,
     onTimeUp: () => dispatch({ type: 'TIME_UP' }),
   });
 
   /**
    * Menu start handler — ALL game-start logic lives here (todo 11 contract:
-   * Menu is presentational, never fetches). Reducer phase guard makes a
-   * double-tap race harmless: the second START_GAME no-ops after phase flips.
+   * Menu is presentational, never fetches). Mode cards now launch directly,
+   * so the ref closes the pre-render double-tap window and prevents duplicate
+   * requests while the selected card shows its loading state.
    */
-  const handleStart = (mode: QuestionMode, source: QuestionSourceQuery): void => {
+  const handleStart = (mode: QuestionMode, source: QuestionSourceQuery): boolean => {
+    if (startInFlightRef.current) return false;
+    startInFlightRef.current = true;
     getOrCreateUserId();
     setStartError(null);
+    setStartingMode(mode);
     fetchQuestions(mode, source, QUESTION_COUNT)
       .then((questions) => {
         if (questions.length === 0) {
@@ -66,7 +73,12 @@ export function App() {
       .catch((err: unknown) => {
         console.error('加载题目失败:', err);
         setStartError(friendlyErrorMessage(err, '加载失败，请重试'));
+      })
+      .finally(() => {
+        startInFlightRef.current = false;
+        setStartingMode(null);
       });
+    return true;
   };
 
   return (
@@ -84,6 +96,7 @@ export function App() {
           dispatch,
           handleStart,
           startError,
+          startingMode,
           timer,
           () => setView('workshop'),
           titleLongPress,
@@ -98,8 +111,9 @@ export function App() {
 function renderPhase(
   state: GameState,
   dispatch: Dispatch<GameAction>,
-  handleStart: (mode: QuestionMode, source: QuestionSourceQuery) => void,
+  handleStart: (mode: QuestionMode, source: QuestionSourceQuery) => boolean,
   startError: string | null,
+  startingMode: QuestionMode | null,
   timer: TimerControls,
   onOpenWorkshop: () => void,
   titleLongPress: LongPressHandlers,
@@ -110,6 +124,7 @@ function renderPhase(
         <Menu
           onStart={handleStart}
           startError={startError}
+          startingMode={startingMode}
           onOpenWorkshop={onOpenWorkshop}
           titleLongPress={titleLongPress}
         />

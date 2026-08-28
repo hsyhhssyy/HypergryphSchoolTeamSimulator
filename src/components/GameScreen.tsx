@@ -29,7 +29,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { Dispatch } from 'preact/hooks';
-import type { GamePhase, GameState } from '@shared/types';
+import type { GamePhase, GameState, Question } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { WRONG_TIME_PENALTY_SECONDS, type TimerControls } from '@/hooks/useTimer';
 import { resolveImageUrl } from '@/lib/api';
@@ -39,19 +39,40 @@ import { HUD } from '@/components/HUD';
 import { ImagePanel } from '@/components/ImagePanel';
 import { QuestionDescription } from '@/components/QuestionDescription';
 
-/** Seconds per question (60s default; documented in .omo/notepads decisions.md). */
-export const QUESTION_TIME_LIMIT = 60;
+/** One shared clock for the entire game; bonuses can never exceed this cap. */
+export const GAME_TIME_LIMIT = 120;
+/** Backwards-compatible name for display/test consumers. */
+export const QUESTION_TIME_LIMIT = GAME_TIME_LIMIT;
+export const CORRECT_TIME_BONUS_SECONDS = 10;
 /** Component-level wrong-click cooldown (ms) — ImagePanel `disabled`. */
 export const WRONG_COOLDOWN_MS = 800;
 /** round_end interstitial length (ms) before auto-dispatching NEXT_ROUND. */
 export const ROUND_END_DELAY_MS = 1500;
-/** Wrong ✕ fade-out duration (ms) — mirrors the --anim-fade-out token. */
-export const WRONG_FADE_MS = 600;
+/**
+ * Total lifetime of the wrong-click feedback. The visual holds before fading,
+ * so the penalty remains readable without extending the 800ms input cooldown.
+ */
+export const WRONG_FEEDBACK_MS = 1400;
 
 export interface GameScreenProps {
   state: GameState;
   dispatch: Dispatch<GameAction>;
   timer: TimerControls;
+}
+
+/** Generic phase helper retained for isolated consumers; the game itself
+ * uses image-readiness-aware whole-game timer effects below. */
+export function applyRoundTimerPhase(
+  phase: GamePhase,
+  timer: TimerControls,
+  limit: number,
+): void {
+  if (phase === 'playing') {
+    timer.reset(limit);
+    timer.start();
+  } else {
+    timer.pause();
+  }
 }
 
 /**
@@ -63,36 +84,6 @@ export interface GameScreenProps {
  * (the effect is a thin wrapper) so unit tests can drive the exact contract
  * directly — see GameScreen.test.ts.
  */
-export function applyRoundTimerPhase(
-  phase: GamePhase,
-  timer: TimerControls,
-  questionTimeLimit: number,
-): void {
-  if (phase === 'playing') {
-    timer.reset(questionTimeLimit);
-    timer.start();
-  } else if (phase === 'round_end') {
-    timer.pause();
-  }
-}
-
-/**
- * Effect wrapper — keyed on `phase` (questionIndex cannot change while phase
- * stays constant) plus the STABLE useTimer controls (reset/start/pause are
- * useCallback([]) — never the `timer` object, which is recreated every
- * render; depending on it would reset the clock after every re-render).
- */
-export function useRoundTimer(
-  phase: GamePhase,
-  timer: TimerControls,
-  questionTimeLimit: number,
-): void {
-  const { reset, start, pause } = timer;
-  useEffect(() => {
-    applyRoundTimerPhase(phase, timer, questionTimeLimit);
-  }, [phase, reset, start, pause, questionTimeLimit]);
-}
-
 /**
  * round_end interstitial: auto-dispatch NEXT_ROUND after ROUND_END_DELAY_MS.
  * The setTimeout is cleared on unmount AND on phase change (effect cleanup),
@@ -149,20 +140,64 @@ export function useWrongClickCooldown(): {
  * once per question advance and NEVER scans the whole set. Out-of-bounds
  * (menu, last question, result) → no-op.
  */
+export function preloadQuestion(question: Question): Promise<void> {
+  const urls = [resolveImageUrl(question.imageA)];
+  if (question.imageB !== undefined) urls.push(resolveImageUrl(question.imageB));
+  return Promise.all(urls.map(preloadImage)).then(() => undefined);
+}
+
+/** Opportunistically warm only the next question. */
 export function usePreloadNextQuestion(state: GameState): void {
-  const { questionIndex, questions } = state;
   useEffect(() => {
-    const next = questions[questionIndex + 1];
-    if (next === undefined) return;
-    preloadImage(resolveImageUrl(next.imageA));
-    if (next.imageB !== undefined) preloadImage(resolveImageUrl(next.imageB));
-  }, [questionIndex, questions]);
+    const next = state.questions[state.questionIndex + 1];
+    if (next !== undefined) void preloadQuestion(next).catch(() => undefined);
+  }, [state.questionIndex, state.questions]);
 }
 
 export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
   const { phase, currentQuestion } = state;
 
-  usePreloadNextQuestion(state);
+  const [loadedQuestionIndex, setLoadedQuestionIndex] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const imagesReady = loadedQuestionIndex === state.questionIndex;
+
+  // The timer belongs to the whole game, so initialize it once when this
+  // screen mounts. Every question transition pauses it until all images have
+  // fetched and decoded in detached Image objects.
+  useEffect(() => {
+    timer.reset(GAME_TIME_LIMIT);
+    return timer.pause;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    timer.pause();
+    setLoadError(false);
+    if (currentQuestion === null) return;
+    preloadQuestion(currentQuestion)
+      .then(() => {
+        if (!cancelled) setLoadedQuestionIndex(state.questionIndex);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.questionIndex, currentQuestion, loadAttempt]);
+
+  useEffect(() => {
+    if (phase === 'playing' && imagesReady && !loadError) timer.start();
+    else timer.pause();
+  }, [phase, imagesReady, loadError, timer.start, timer.pause]);
+
+  // Warm the next question during play/interstitial. It is still verified as
+  // decoded before being shown when that question becomes current.
+  useEffect(() => {
+    const next = state.questions[state.questionIndex + 1];
+    if (next !== undefined) void preloadQuestion(next).catch(() => undefined);
+  }, [state.questionIndex, state.questions]);
 
   // Round-score baseline: snapshot the TOTAL score the moment a round starts,
   // so the interstitial can show this round's delta (find bonus + time bonus).
@@ -172,11 +207,10 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
   }, [phase]);
 
   const { cooldown, trigger: triggerCooldown } = useWrongClickCooldown();
-  useRoundTimer(phase, timer, QUESTION_TIME_LIMIT);
   useRoundEndAutoAdvance(phase, dispatch);
 
-  // Wrong ✕ flash counter — used as the element key so every miss remounts
-  // the mark and replays the wiggle + 600ms fade-out animations.
+  // Wrong-feedback counter — used as the element key so every miss remounts
+  // the card and replays its flash/pop/wiggle animations.
   const [wrongFlash, setWrongFlash] = useState(0);
   const wrongFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -188,9 +222,8 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
 
   const handleHit = useCallback(
     (index: number) => {
-      // timeLeft payload REQUIRED — the reducer computes the round-completion
-      // time bonus from it (never reads the timer itself).
-      dispatch({ type: 'FOUND_DIFFERENCE', index, timeLeft: timer.timeLeft });
+      timer.addTime(CORRECT_TIME_BONUS_SECONDS);
+      dispatch({ type: 'FOUND_DIFFERENCE', index });
     },
     [dispatch, timer],
   );
@@ -200,7 +233,7 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
     timer.deductTime(WRONG_TIME_PENALTY_SECONDS);
     setWrongFlash((n) => n + 1);
     if (wrongFlashRef.current !== null) clearTimeout(wrongFlashRef.current);
-    wrongFlashRef.current = setTimeout(() => setWrongFlash(0), WRONG_FADE_MS);
+    wrongFlashRef.current = setTimeout(() => setWrongFlash(0), WRONG_FEEDBACK_MS);
     triggerCooldown();
   }, [dispatch, timer, triggerCooldown]);
 
@@ -225,7 +258,7 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
     );
   }
 
-  const panelsDisabled = cooldown || phase !== 'playing';
+  const panelsDisabled = cooldown || phase !== 'playing' || !imagesReady;
 
   return (
     <main className="game-screen">
@@ -234,7 +267,7 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
       <HUD
         score={state.score}
         timeLeft={timer.timeLeft}
-        totalTime={QUESTION_TIME_LIMIT}
+        totalTime={GAME_TIME_LIMIT}
         foundCount={state.foundIndices.length}
         totalCount={currentQuestion.differences.length}
         showCount={currentQuestion.showCount}
@@ -249,7 +282,18 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
 
       {/* find_area (imageB undefined, todo 14) → single centered full-width
           panel via the --single modifier; spot_diff keeps the 2-col grid. */}
-      <div
+      {!imagesReady ? (
+        <div className="game-empty" role={loadError ? 'alert' : 'status'}>
+          <p className="game-empty__text">
+            {loadError ? '图片加载失败，计时已暂停' : '正在准备题目，计时已暂停…'}
+          </p>
+          {loadError && (
+            <button type="button" className="btn btn--primary" onClick={() => setLoadAttempt((n) => n + 1)}>
+              重试加载
+            </button>
+          )}
+        </div>
+      ) : <div
         className={`game-panels${
           currentQuestion.imageB === undefined ? ' game-panels--single' : ''
         }`}
@@ -272,7 +316,7 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
             disabled={panelsDisabled}
           />
         )}
-      </div>
+      </div>}
 
       {/* round_end interstitial — covers the still-mounted panels; the timer
           is paused (useRoundTimer) and NEXT_ROUND fires in ~1500ms. */}
@@ -290,8 +334,23 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
       )}
 
       {wrongFlash > 0 && (
-        <div key={wrongFlash} className="wrong-mark" aria-hidden="true">
-          <span className="wrong-mark__glyph">✕</span>
+        <div
+          key={wrongFlash}
+          className="wrong-mark"
+          role="alert"
+          aria-atomic="true"
+        >
+          <div className="wrong-mark__card">
+            <span className="wrong-mark__glyph" aria-hidden="true">
+              ✕
+            </span>
+            <span className="wrong-mark__copy">
+              <strong className="wrong-mark__title">点错啦</strong>
+              <span className="wrong-mark__penalty">
+                −{WRONG_TIME_PENALTY_SECONDS} 秒
+              </span>
+            </span>
+          </div>
         </div>
       )}
     </main>

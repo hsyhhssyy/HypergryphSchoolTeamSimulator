@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
  * `timer.deductTime(WRONG_TIME_PENALTY_SECONDS)` alongside dispatch(WRONG_CLICK)).
  * The game reducer never touches time — this hook owns it exclusively.
  */
-export const WRONG_TIME_PENALTY_SECONDS = 5;
+export const WRONG_TIME_PENALTY_SECONDS = 10;
 
 export interface UseTimerOptions {
   /** Countdown duration in seconds. */
   initialSeconds: number;
+  /** Optional hard ceiling for added time. */
+  maxSeconds?: number;
   /** Called after every 1s tick with the remaining seconds (may be 0). */
   onTick?: (remaining: number) => void;
   /** Called exactly once when the countdown reaches 0. */
@@ -44,7 +46,7 @@ const TICK_MS = 1000;
  * repeated start() calls, pause(), reset(), and unmount all funnel through a
  * single effect cleanup — duplicates and leaks are impossible by construction.
  */
-export function useTimer({ initialSeconds, onTick, onTimeUp }: UseTimerOptions): TimerControls {
+export function useTimer({ initialSeconds, maxSeconds, onTick, onTimeUp }: UseTimerOptions): TimerControls {
   const [timeLeft, setTimeLeft] = useState(initialSeconds);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -53,11 +55,13 @@ export function useTimer({ initialSeconds, onTick, onTimeUp }: UseTimerOptions):
   const timeLeftRef = useRef(timeLeft);
   const isRunningRef = useRef(isRunning);
   const initialSecondsRef = useRef(initialSeconds);
+  const maxSecondsRef = useRef(maxSeconds);
   const onTickRef = useRef(onTick);
   const onTimeUpRef = useRef(onTimeUp);
 
   useEffect(() => {
     initialSecondsRef.current = initialSeconds;
+    maxSecondsRef.current = maxSeconds;
     onTickRef.current = onTick;
     onTimeUpRef.current = onTimeUp;
   });
@@ -108,7 +112,10 @@ export function useTimer({ initialSeconds, onTick, onTimeUp }: UseTimerOptions):
   }, []);
 
   const addTime = useCallback((seconds: number) => {
-    const next = timeLeftRef.current + seconds;
+    const next = Math.max(
+      0,
+      Math.min(maxSecondsRef.current ?? Number.POSITIVE_INFINITY, timeLeftRef.current + seconds),
+    );
     timeLeftRef.current = next;
     setTimeLeft(next);
   }, []);

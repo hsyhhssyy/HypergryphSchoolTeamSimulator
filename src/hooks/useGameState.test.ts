@@ -162,12 +162,12 @@ describe('WRONG_CLICK', () => {
 });
 
 describe('TIME_UP', () => {
-  it('moves playing → round_end with NO time bonus', () => {
+  it('moves playing → result immediately with the correct-find score intact', () => {
     // Given: playing with score 100. When: timer fires TIME_UP.
     const before = find(startGame([qOne()]), 0);
     const state = gameReducer(before, { type: 'TIME_UP' });
-    // Then: round_end, score unchanged, timeLeft snapshot 0.
-    expect(state.phase).toBe('round_end');
+    // Then: the whole game is settled immediately.
+    expect(state.phase).toBe('result');
     expect(state.score).toBe(FOUND_SCORE);
     expect(state.timeLeft).toBe(0);
   });

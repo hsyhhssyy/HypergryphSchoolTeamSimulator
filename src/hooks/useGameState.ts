@@ -6,6 +6,13 @@ import type {
   QuestionSourceQuery,
 } from '@shared/types';
 
+/** Scoring is deliberately one point per correct position. */
+export const FOUND_SCORE = 1;
+/** Wrong taps affect time, not score. Kept exported for display/test consumers. */
+export const WRONG_PENALTY = 0;
+/** There is no remaining-time score bonus in the whole-game timer rules. */
+export const TIME_BONUS_PER_SECOND = 0;
+
 /**
  * THE single game-level state machine for the whole app (todo 3/8 contract).
  * App renders screens from `state.phase`; there is exactly ONE game reducer —
@@ -23,13 +30,9 @@ import type {
  *   COOLDOWN action here.
  */
 
-export const FOUND_SCORE = 100;
-export const WRONG_PENALTY = 30;
-export const TIME_BONUS_PER_SECOND = 10;
-
 export type GameAction =
   | { type: 'START_GAME'; mode: QuestionMode; source: QuestionSourceQuery; questions: Question[] }
-  | { type: 'FOUND_DIFFERENCE'; index: number; timeLeft: number }
+  | { type: 'FOUND_DIFFERENCE'; index: number; timeLeft?: number }
   | { type: 'WRONG_CLICK' }
   | { type: 'TIME_UP' }
   | { type: 'NEXT_ROUND' }
@@ -89,25 +92,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         foundIndices,
         totalFound: state.totalFound + 1,
         phase: completed ? 'round_end' : 'playing',
-        score:
-          state.score +
-          FOUND_SCORE +
-          (completed ? Math.max(0, action.timeLeft) * TIME_BONUS_PER_SECOND : 0),
-        timeLeft: completed ? Math.max(0, action.timeLeft) : state.timeLeft,
+        // One point per correctly found position, including every position in
+        // a multi-position question. Time changes are owned by useTimer.
+        score: state.score + FOUND_SCORE,
+        timeLeft: completed ? Math.max(0, action.timeLeft ?? state.timeLeft) : state.timeLeft,
       };
     }
     case 'WRONG_CLICK': {
       if (state.phase !== 'playing') return state;
       return {
         ...state,
-        score: Math.max(0, state.score - WRONG_PENALTY),
         wrongCount: state.wrongCount + 1,
       };
     }
     case 'TIME_UP': {
       // The timer may outlive the round: ignore TIME_UP outside 'playing'.
       if (state.phase !== 'playing') return state;
-      return { ...state, phase: 'round_end', timeLeft: 0 };
+      return { ...state, phase: 'result', timeLeft: 0 };
     }
     case 'NEXT_ROUND': {
       if (state.phase !== 'round_end') return state;

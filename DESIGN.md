@@ -107,7 +107,7 @@ A candy-box arcade game: warm cream paper background, thick ink outlines, and sa
 - **Accessibility**: timer bar is a `role="progressbar"` with `aria-valuemin/max/now/text`.
 
 ### .result (Result screen, todo 15)
-- **Structure**: `.screen.result-screen` — title, score card, found/missed list, 再来一局 button (all `max-width: 420px` on mobile; at `@media (min-width: 900px)` desktop the result-card / result-list / result-replay / result-rating widen to `min(520px, 90vw)` — same for `.menu__section` / `.menu__start`; second ≥900px block, §8.2's owns the game surface).
+- **Structure**: `.screen.result-screen` — title, score card, found/missed list, 再来一局 button (all `max-width: 420px` on mobile; at `@media (min-width: 900px)` desktop the result-card / result-list / result-replay / result-rating widen to `min(520px, 90vw)` — same for `.menu__section`; second ≥900px block, §8.2's owns the game surface).
 - **Score card**: white surface, `--color-success` left edge, display-font score, success-ink accuracy (accuracy = found/(found+wrong), 0 on the no-taps case — never NaN).
 - **Found/missed list**: one row per difference (numbered circle badge, type label 圆形区域/矩形区域, status 已找到/未找到). Missed rows = danger tint bg + danger border + danger status — ALWAYS shown regardless of show_count.
 - **States**: replay button = `.btn.btn--primary` → dispatch RESET.
@@ -121,11 +121,11 @@ A candy-box arcade game: warm cream paper background, thick ink outlines, and sa
 | --anim-bounce | bounce 350ms cubic-bezier(0.34, 1.56, 0.64, 1) | Correct-hit marker pop, button entry |
 | --anim-pop | pop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) | Card/screen entry |
 | --anim-wiggle | wiggle 400ms ease-in-out | Wrong-hit ✕, shake feedback |
+| --anim-wrong-feedback | wrong-feedback-hold 1400ms ease-out | Wrong-hit viewport flash and readable penalty hold |
 | --anim-confetti | confetti-fall 2s linear infinite | Result celebration (confetti-ready) |
-| --anim-fade-out | fade-out 600ms ease-out | Wrong-hit ✕ fading (todo 13) |
 
 ### Timing
-- Micro 120ms (press), standard 250ms (state change), emphasis 350–400ms (entries), confetti 2s loop.
+- Micro 120ms (press), standard 250ms (state change), emphasis 350–400ms (entries), wrong feedback 1.4s, confetti 2s loop.
 
 ### Rules
 - GPU-composited only: `transform` + `opacity` + `filter`. Never animate layout properties.
@@ -148,7 +148,7 @@ Interactive gradient accents: primary buttons use `linear-gradient(180deg, var(-
 
 ### Constraints
 - WCAG 2.2 AA target: contrast floor 4.5:1 body / 3:1 large text; visible focus on every interactive element (dashed accent outline); full keyboard reachability; `prefers-reduced-motion` respected; touch targets ≥ 44px; **no** `user-scalable=no` / `maximum-scale=1` (WCAG 1.4.4); `touch-action: manipulation` on all controls.
-- `touch-action: none` reserved for the game surface overlay (ImagePanel, todo 12) — needs pointer-based hit precision, and its coordinates are handled by the panel itself.
+- `touch-action: pan-y pinch-zoom` on the gameplay ImagePanel lets tall/stacked images scroll; pointer movement is classified before hit detection. The workshop drawing overlay keeps `touch-action: none` for precise rectangle authoring.
 - Chinese text at body scale never below 14px for primary content.
 
 ### Accepted Debt

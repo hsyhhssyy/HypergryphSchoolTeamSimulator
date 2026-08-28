@@ -6,15 +6,18 @@ import type { LongPressHandlers } from '@/hooks/useLongPress';
 /**
  * Menu screen (todo 11) — PURELY PRESENTATIONAL.
  *
- * Holds only local UI selection state (chosen mode/source). Everything else —
+ * Holds only local UI selection state (source + last attempted mode). Everything else —
  * anonymous userId, question fetching, START_GAME dispatch — lives in
  * App.handleStart (App.tsx). This component never fetches and never touches
  * game state.
  */
 export interface MenuProps {
-  onStart: (mode: QuestionMode, source: QuestionSourceQuery) => void;
+  /** Returns true when App accepts the launch (false while one is in flight). */
+  onStart: (mode: QuestionMode, source: QuestionSourceQuery) => boolean;
   /** Fetch/load failure surfaced from App (todo 24 refines error states). */
   startError?: string | null;
+  /** The directly-launched mode currently fetching; null keeps entries enabled. */
+  startingMode?: QuestionMode | null;
   /** Switch the App-level view to the workshop submission form (todo 20). */
   onOpenWorkshop: () => void;
   /** Long-press gesture handlers for the app title (hidden admin entry). */
@@ -82,12 +85,18 @@ const MODE_ICONS: Record<QuestionMode, () => JSX.Element> = {
   find_area: FindAreaIcon,
 };
 
-export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPress }: MenuProps) {
-  const [mode, setMode] = useState<QuestionMode | null>(null);
+export function Menu({
+  onStart,
+  startError = null,
+  startingMode = null,
+  onOpenWorkshop,
+  titleLongPress,
+}: MenuProps) {
+  const [lastMode, setLastMode] = useState<QuestionMode | null>(null);
   const [source, setSource] = useState<QuestionSourceQuery>('official');
 
   return (
-    <main className="screen menu">
+    <main className={`screen menu menu--source-${source}`}>
       {/* Todo 5: decorative background stickers — aria-hidden + pointer-events
           none (CSS), so they never intercept the title long-press. */}
       <div className="menu__stickers" aria-hidden="true">
@@ -114,9 +123,45 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
         <p className="text-muted">找不同 · 区域识别 · 答题小游戏</p>
       </header>
 
+      {/* Source comes first because choosing a mode now starts immediately. */}
+      <section className="menu__section" aria-labelledby="menu-source-heading">
+        <h2 id="menu-source-heading" className="menu__heading">
+          题目来源
+          <svg
+            className="menu__heading-squiggle"
+            viewBox="0 0 120 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M2 8 C 12 4, 28 4, 40 8 C 52 12, 68 12, 80 8 C 92 4, 108 4, 118 6"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+          </svg>
+        </h2>
+        <p className="menu__source-hint">先选题库，再点击下方玩法直接开始</p>
+        <div className="source-toggle" role="group" aria-label="题目来源">
+          {SOURCE_OPTIONS.map((opt) => (
+            <button
+              type="button"
+              key={opt.value}
+              className={`source-toggle__option source-toggle__option--${opt.value}${
+                source === opt.value ? ' source-toggle--active' : ''
+              }`}
+              aria-pressed={source === opt.value}
+              disabled={startingMode !== null}
+              onClick={() => setSource(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="menu__section" aria-labelledby="menu-mode-heading">
         <h2 id="menu-mode-heading" className="menu__heading">
-          选择模式
+          选择玩法·点击即开始
           {/* Todo 5: hand-drawn squiggle underline — decorative, stroked via
               the --color-accent token in CSS. */}
           <svg
@@ -135,82 +180,40 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
         <div className="menu__modes">
           {MODE_OPTIONS.map((opt) => {
             const Icon = MODE_ICONS[opt.mode];
-            const active = mode === opt.mode;
+            const loading = startingMode === opt.mode;
             return (
               <button
                 type="button"
                 key={opt.mode}
-                className={`mode-card${active ? ' mode-card--active' : ''}`}
-                aria-pressed={active}
-                onClick={() => setMode(opt.mode)}
+                className={`mode-card mode-card--entry${
+                  loading ? ' mode-card--loading' : ''
+                }`}
+                aria-label={`${opt.label}，${
+                  source === 'official' ? '仅官方题目' : '包含创意工坊'
+                }，点击开始游戏`}
+                aria-busy={loading}
+                disabled={startingMode !== null}
+                onClick={() => {
+                  if (onStart(opt.mode, source)) setLastMode(opt.mode);
+                }}
               >
                 <Icon />
                 <span className="mode-card__label">{opt.label}</span>
                 <span className="mode-card__desc">{opt.desc}</span>
+                <span className="mode-card__action">
+                  {loading ? '正在加载…' : '进入游戏 →'}
+                </span>
               </button>
             );
           })}
         </div>
       </section>
 
-      <section className="menu__section" aria-labelledby="menu-source-heading">
-        <h2 id="menu-source-heading" className="menu__heading">
-          题目来源
-          <svg
-            className="menu__heading-squiggle"
-            viewBox="0 0 120 14"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M2 8 C 12 4, 28 4, 40 8 C 52 12, 68 12, 80 8 C 92 4, 108 4, 118 6"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </h2>
-        <div className="source-toggle" role="group" aria-label="题目来源">
-          {SOURCE_OPTIONS.map((opt) => (
-            <button
-              type="button"
-              key={opt.value}
-              className={`source-toggle__option${
-                source === opt.value ? ' source-toggle--active' : ''
-              }`}
-              aria-pressed={source === opt.value}
-              onClick={() => setSource(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <button
-        type="button"
-        className="btn btn--primary menu__start"
-        disabled={mode === null}
-        onClick={() => {
-          if (mode !== null) onStart(mode, source);
-        }}
-      >
-        {/* Todo 5: decorative sparkle — aria-hidden, tinted via the accent
-            token in CSS. */}
-        <svg
-          className="menu__start-sparkle"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" />
-        </svg>
-        开始游戏
-      </button>
-
       <button
         type="button"
         className="btn btn--ghost menu__workshop"
         aria-label="进入创意工坊投稿"
+        disabled={startingMode !== null}
         onClick={onOpenWorkshop}
       >
         <svg
@@ -234,14 +237,15 @@ export function Menu({ onStart, startError = null, onOpenWorkshop, titleLongPres
           <p role="alert" className="menu__error">
             {startError}
           </p>
-          {/* Retry re-runs onStart with the CURRENT selections — the fetch
+          {/* Retry re-runs onStart with the last mode + CURRENT source — the fetch
               is owned by App.handleStart; Menu stays presentational. */}
           <button
             type="button"
             className="btn btn--ghost menu__retry"
             data-testid="menu-retry"
+            disabled={lastMode === null || startingMode !== null}
             onClick={() => {
-              if (mode !== null) onStart(mode, source);
+              if (lastMode !== null) onStart(lastMode, source);
             }}
           >
             重试

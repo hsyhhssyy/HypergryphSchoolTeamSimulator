@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Difference } from '@shared/types';
 import type { ContainTransform } from '@/utils/hitDetection';
-import { differenceMarkerStyle } from '@/components/ImagePanel';
+import {
+  differenceMarkerStyle,
+  exceedsTapMoveThreshold,
+  TAP_MOVE_THRESHOLD_PX,
+} from '@/components/ImagePanel';
 
 /**
  * Marker-position math tests (todo 12 acceptance): an 800×600 image displayed
@@ -51,5 +55,21 @@ describe('differenceMarkerStyle', () => {
   it('malformed runtime data returns null (never throws)', () => {
     const bogus = { type: 'triangle' } as unknown as Difference;
     expect(differenceMarkerStyle(bogus, transform)).toBeNull();
+  });
+});
+
+describe('touch gesture classification', () => {
+  it('keeps small finger jitter as a tap', () => {
+    expect(exceedsTapMoveThreshold(100, 100, 105, 104)).toBe(false);
+  });
+
+  it('cancels judging once movement reaches the display-pixel threshold', () => {
+    // 6² + 8² = 10²: the exact boundary is already a swipe/gesture.
+    expect(exceedsTapMoveThreshold(100, 100, 106, 108)).toBe(true);
+    expect(TAP_MOVE_THRESHOLD_PX).toBe(10);
+  });
+
+  it('classifies a vertical swipe as movement even if it later returns', () => {
+    expect(exceedsTapMoveThreshold(100, 300, 100, 250)).toBe(true);
   });
 });

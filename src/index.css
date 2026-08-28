@@ -82,8 +82,8 @@
   --anim-bounce: bounce var(--duration-emphasis) var(--ease-bounce);
   --anim-pop: pop var(--duration-emphasis) var(--ease-bounce);
   --anim-wiggle: wiggle 400ms ease-in-out;
+  --anim-wrong-feedback: wrong-feedback-hold 1400ms ease-out forwards;
   --anim-confetti: confetti-fall 2s linear infinite;
-  --anim-fade-out: fade-out 600ms ease-out;
   --anim-float: float 3s ease-in-out infinite;
 }
 
@@ -302,8 +302,9 @@ button {
 
 /* --------------------------------------------------------------------------
    8. Game surface overlay (ImagePanel, todo 12)
-   Only the game surface gets touch-action: none — precision taps must not
-   be delayed by pan/zoom gesture detection. NEVER apply to page chrome.
+   Authoring surfaces default to touch-action:none for precision drawing.
+   Gameplay ImagePanel overrides this to pan-y/pinch-zoom so a player can
+   scroll past tall or stacked images without an accidental answer.
    -------------------------------------------------------------------------- */
 .game-surface {
   touch-action: none;
@@ -379,6 +380,7 @@ button {
   position: absolute;
   inset: 0;
   cursor: crosshair;
+  touch-action: pan-y pinch-zoom;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -520,10 +522,6 @@ button {
     max-width: min(520px, 90vw);
   }
 
-  .menu .menu__start {
-    max-width: min(520px, 90vw);
-  }
-
   .result-screen .result-card {
     max-width: min(520px, 90vw);
   }
@@ -637,28 +635,73 @@ button {
   color: var(--color-ink-muted);
 }
 
-/* Wrong-hit ✕ — outer div centers (translate must not fight the wiggle
-   keyframes), inner glyph runs wiggle (shake) + fade-out (600ms). */
+/* Wrong-hit feedback — fixed to the viewport so it remains obvious even when
+   a tall game image has scrolled. The backdrop and readable penalty card hold
+   before fading; pointer-events stays none, so the visual never blocks play. */
 .wrong-mark {
-  position: absolute;
-  top: 52%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   pointer-events: none;
+  animation: var(--anim-wrong-feedback);
+}
+
+.wrong-mark__card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 220px;
+  padding: var(--space-3) var(--space-4);
+  border: 3px solid var(--color-danger);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-pop);
+  animation: wrong-feedback-pop 450ms var(--ease-bounce);
 }
 
 .wrong-mark__glyph {
-  display: block;
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-pill);
   font-family: var(--font-display);
-  font-size: calc(var(--font-size-display) * 1.5);
+  font-size: var(--font-size-display);
   font-weight: 700;
-  color: var(--color-danger);
-  text-shadow: var(--shadow-pop);
-  animation: var(--anim-wiggle), var(--anim-fade-out);
-  animation-fill-mode: forwards;
+  line-height: 1;
+  color: var(--color-ink-on);
+  background: var(--color-danger);
+  animation: var(--anim-wiggle);
   /* Todo 23: transform/opacity-only animation — promote to its own layer. */
   will-change: transform;
+}
+
+.wrong-mark__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: left;
+}
+
+.wrong-mark__title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-h2);
+  line-height: 1.1;
+  color: var(--color-danger-ink);
+}
+
+.wrong-mark__penalty {
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --------------------------------------------------------------------------
@@ -746,6 +789,33 @@ button {
   }
   to {
     opacity: 0;
+  }
+}
+
+/* Wrong feedback stays fully readable for most of its 1.4s lifetime, then
+   fades during the final 400ms. */
+@keyframes wrong-feedback-hold {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes wrong-feedback-pop {
+  0% {
+    transform: scale(0.72) translateY(8px);
+  }
+  65% {
+    transform: scale(1.05) translateY(0);
+  }
+  100% {
+    transform: scale(1) translateY(0);
   }
 }
 
@@ -1004,18 +1074,35 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  /* Keep the non-motion error message visible for its JS-controlled lifetime;
+     collapsing the fade animation to its final frame would make it invisible. */
+  .wrong-mark,
+  .wrong-mark__card,
+  .wrong-mark__glyph {
+    animation: none !important;
+  }
 }
 
 /* --------------------------------------------------------------------------
-   12. Menu screen (todo 11) — mode cards + source toggle + start button
+   12. Menu screen (todo 11) — source-first toggle + direct-launch mode cards
    -------------------------------------------------------------------------- */
 .menu {
+  --menu-source-main: var(--color-primary);
+  --menu-source-alt: var(--color-accent);
+  --menu-source-edge: color-mix(in srgb, var(--color-primary) 78%, var(--color-ink));
   justify-content: flex-start;
   gap: var(--space-6);
   padding-top: calc(var(--space-10) + var(--safe-area-top));
   text-align: center;
   /* Todo 5: scoping box for the absolute decorative stickers. */
   position: relative;
+}
+
+.menu--source-mixed {
+  --menu-source-main: var(--color-secondary);
+  --menu-source-alt: var(--color-success);
+  --menu-source-edge: color-mix(in srgb, var(--color-secondary) 72%, var(--color-ink));
 }
 
 .menu__hero h1 {
@@ -1042,6 +1129,13 @@ button {
   flex-direction: column;
   gap: var(--space-3);
   text-align: left;
+}
+
+.menu__source-hint {
+  margin-top: calc(-1 * var(--space-1));
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-ink-muted);
 }
 
 .menu__heading {
@@ -1191,12 +1285,12 @@ button {
 /* Todo 5: desktop-only hover straightens + lifts the card (mouse-only, same
    pattern as .btn at §4). :active excluded so the press pop still wins. */
 @media (hover: hover) {
-  .mode-card:hover:not(:active):not(.mode-card--active) {
+  .mode-card:hover:not(:active):not(:disabled):not(.mode-card--active) {
     transform: rotate(0) scale(1.03);
   }
 }
 
-.mode-card:active:not(.mode-card--active) {
+.mode-card:active:not(:disabled):not(.mode-card--active) {
   transform: scale(0.96);
 }
 
@@ -1245,6 +1339,59 @@ button {
   color: color-mix(in srgb, var(--color-ink-on) 88%, transparent);
 }
 
+/* Menu mode cards are commands, not selections: the whole colored card is the
+   launch button. Its orange/amber or teal/mint theme follows the source toggle.
+   Ink text keeps AA contrast on both bright palettes. Workshop mode cards do
+   not carry --entry and retain the selection styling above. */
+.menu .mode-card--entry {
+  min-height: 164px;
+  border-color: var(--menu-source-main);
+  color: var(--color-ink);
+  background: linear-gradient(
+    145deg,
+    var(--menu-source-alt),
+    var(--menu-source-main)
+  );
+  box-shadow: 0 5px 0 var(--menu-source-edge), var(--shadow-card);
+}
+
+.menu .mode-card--entry .mode-card__icon,
+.menu .mode-card--entry .mode-card__label,
+.menu .mode-card--entry .mode-card__desc {
+  color: var(--color-ink);
+}
+
+.mode-card__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+}
+
+.menu .mode-card--entry:disabled {
+  cursor: wait;
+}
+
+.menu .mode-card--entry:disabled:not(.mode-card--loading) {
+  opacity: 0.5;
+  filter: grayscale(0.25);
+  box-shadow: none;
+}
+
+.menu .mode-card--loading {
+  transform: rotate(0) scale(0.98);
+  box-shadow: 0 3px 0 var(--menu-source-edge), var(--shadow-card);
+}
+
 /* Segmented source toggle — pill track with sliding surface highlight */
 .source-toggle {
   display: grid;
@@ -1284,20 +1431,58 @@ button {
   box-shadow: var(--shadow-card);
 }
 
-/* Start button — full-width candy CTA, disabled until a mode is picked.
-   Todo 5: bouncier — taller target, sparkle, and a cheeky -1° lean. */
-.menu__start {
-  width: 100%;
-  max-width: 420px;
-  min-height: 60px;
-  transform: rotate(-1deg);
+/* The menu source choices keep distinct colors even while inactive; the
+   active side fills with its own gradient, while aria-pressed carries the
+   same state non-visually. Scoped so WorkshopSubmit's show-count toggle keeps
+   the generic segmented-control appearance. */
+.menu .source-toggle {
+  border: 2px solid var(--color-background-alt);
+  background: var(--color-surface);
 }
 
-.menu__start-sparkle {
-  width: 18px;
-  height: 18px;
+.menu .source-toggle__option {
+  border: 2px solid transparent;
+  color: var(--color-ink);
+}
+
+.menu .source-toggle__option--official {
+  border-color: color-mix(in srgb, var(--color-primary) 48%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+
+.menu .source-toggle__option--mixed {
+  border-color: color-mix(in srgb, var(--color-secondary) 55%, transparent);
+  background: color-mix(in srgb, var(--color-secondary) 11%, var(--color-surface));
+}
+
+.menu .source-toggle__option--official.source-toggle--active {
+  border-color: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-accent), var(--color-primary));
+  box-shadow: 0 3px 0 var(--menu-source-edge), var(--shadow-card);
+}
+
+.menu .source-toggle__option--mixed.source-toggle--active {
+  border-color: var(--color-secondary);
+  background: linear-gradient(135deg, var(--color-success), var(--color-secondary));
+  box-shadow: 0 3px 0 var(--menu-source-edge), var(--shadow-card);
+}
+
+.menu .source-toggle__option:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.menu__workshop {
+  width: 100%;
+  max-width: 260px;
+  min-height: 52px;
+  white-space: nowrap;
+}
+
+.menu__workshop-icon {
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  color: var(--color-accent);
 }
 
 .menu__error {
@@ -1727,6 +1912,16 @@ button {
   height: auto;
 }
 
+.workshop-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.workshop-upload__adjust {
+  margin: var(--space-2);
+}
+
 /* Zone editor — same contain math as ImagePanel (taps → native coords) */
 .workshop-editor {
   display: flex;
@@ -1756,6 +1951,7 @@ button {
   cursor: crosshair;
   user-select: none;
   -webkit-user-select: none;
+  z-index: 1;
 }
 
 /* Authored zones: dashed accent outline; selected → solid success ring */
@@ -1763,8 +1959,235 @@ button {
   position: absolute;
   box-sizing: border-box;
   border: 3px dashed var(--color-primary-alt);
-  pointer-events: none;
+  pointer-events: auto;
+  z-index: 2;
+  cursor: pointer;
   animation: var(--anim-pop);
+}
+
+.workshop-marker__delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: white;
+  font: 700 24px/1 sans-serif;
+  cursor: pointer;
+  transform: translate(45%, -45%);
+  box-shadow: var(--shadow-card);
+  z-index: 3;
+}
+
+.workshop-marker__delete:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+.image-adjust {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  color: white;
+  background: #080808;
+  overscroll-behavior: contain;
+}
+
+.image-adjust__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 64px;
+  padding: max(env(safe-area-inset-top), var(--space-2)) var(--space-3) var(--space-2);
+  background: #111;
+}
+
+.image-adjust__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.image-adjust__text-button,
+.image-adjust__done,
+.image-adjust__toolbar button {
+  min-width: 48px;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  color: white;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.image-adjust__done {
+  color: #111;
+  background: var(--color-success);
+  border-radius: var(--radius-button);
+  font-weight: 750;
+}
+
+.image-adjust__done:disabled {
+  opacity: 0.55;
+}
+
+.image-adjust__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  overflow: hidden;
+  padding: var(--space-2) 0;
+}
+
+.image-adjust__hint,
+.image-adjust__size {
+  flex: none;
+  margin: 0;
+  color: rgb(255 255 255 / 70%);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.image-adjust__viewport {
+  position: relative;
+  flex: none;
+  max-width: 100vw;
+  max-height: 68dvh;
+  overflow: hidden;
+  background: #181818;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  border: 2px dashed rgb(255 255 255 / 92%);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 38%);
+}
+
+.image-adjust__viewport:active {
+  cursor: grabbing;
+}
+
+.image-adjust__moving,
+.image-adjust__reference {
+  position: absolute;
+  display: block;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.image-adjust__reference {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image-adjust__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to right, transparent 33.1%, rgb(255 255 255 / 55%) 33.3%, transparent 33.5%, transparent 66.4%, rgb(255 255 255 / 55%) 66.6%, transparent 66.8%), linear-gradient(to bottom, transparent 33.1%, rgb(255 255 255 / 55%) 33.3%, transparent 33.5%, transparent 66.4%, rgb(255 255 255 / 55%) 66.6%, transparent 66.8%);
+}
+
+.image-adjust__handle {
+  position: absolute;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+}
+
+.image-adjust__handle::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-color: white;
+  border-style: solid;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 80%));
+}
+
+.image-adjust__handle--nw { top: 0; left: 0; cursor: nwse-resize; }
+.image-adjust__handle--ne { top: 0; right: 0; cursor: nesw-resize; }
+.image-adjust__handle--sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.image-adjust__handle--se { right: 0; bottom: 0; cursor: nwse-resize; }
+.image-adjust__handle--nw::before { border-width: 3px 0 0 3px; }
+.image-adjust__handle--ne::before { border-width: 3px 3px 0 0; }
+.image-adjust__handle--sw::before { border-width: 0 0 3px 3px; }
+.image-adjust__handle--se::before { border-width: 0 3px 3px 0; }
+
+.image-adjust__dimensions {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: var(--space-2);
+  color: rgb(255 255 255 / 75%);
+}
+
+.image-adjust__dimensions label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.75rem;
+}
+
+.image-adjust__dimensions input {
+  width: 84px;
+  min-height: 40px;
+  padding: 0 var(--space-2);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 8px;
+  color: white;
+  background: #242424;
+  font: inherit;
+  text-align: center;
+}
+
+.image-adjust__error {
+  margin: 0;
+  color: #ff829d;
+  text-align: center;
+}
+
+.image-adjust__toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3) max(env(safe-area-inset-bottom), var(--space-2));
+  background: #111;
+}
+
+.image-adjust__aspects {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow-x: auto;
+}
+
+.image-adjust__toolbar .image-adjust__tool--active {
+  color: var(--color-success);
+  font-weight: 750;
+}
+
+@media (min-width: 720px) {
+  .image-adjust__viewport {
+    max-width: min(720px, 80vw);
+  }
 }
 
 .workshop-marker--selected {

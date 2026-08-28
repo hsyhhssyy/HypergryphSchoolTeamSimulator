@@ -225,15 +225,13 @@ async function startGame(
 ): Promise<void> {
   await page.goto('/');
   await expect(page.locator('.menu')).toBeVisible();
-  const modeCard = page.locator('.mode-card', { hasText: modeLabel });
-  await tapLocator(page, modeCard);
-  await expect(modeCard).toHaveAttribute('aria-pressed', 'true');
   const sourceOption = page.locator('.source-toggle__option', { hasText: sourceLabel });
   await tapLocator(page, sourceOption);
   await expect(sourceOption).toHaveAttribute('aria-pressed', 'true');
+  const modeCard = page.locator('.mode-card--entry', { hasText: modeLabel });
   await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/questions?')),
-    tapLocator(page, page.locator('.menu__start')),
+    tapLocator(page, modeCard),
   ]);
   await expect(page.locator('.hud')).toBeVisible();
 }
@@ -302,8 +300,8 @@ test.describe('responsive-layout (chromium-desktop, 1280×800, mouse)', () => {
     // is false here, tapAt dispatches page.mouse.click).
     await tapNativePoint(page, 1, diffCenter(diffs[0]!));
     await expect(page.locator('.image-panel-marker')).toHaveCount(2);
-    await expect(page.getByTestId('hud-score')).toHaveText('得分 100');
-    expect(await hudScore(page)).toBe(100);
+    await expect(page.getByTestId('hud-score')).toHaveText('得分 1');
+    expect(await hudScore(page)).toBe(1);
   });
 
   test('d. find_area desktop: single column (--single modifier + one computed track)', async ({

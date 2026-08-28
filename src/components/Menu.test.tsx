@@ -25,10 +25,11 @@ const noopHandlers: LongPressHandlers = {
   onContextMenu: () => {},
 };
 
-function renderMenuHtml(): string {
+function renderMenuHtml(startingMode: 'spot_diff' | 'find_area' | null = null): string {
   return renderToString(
     <Menu
-      onStart={() => {}}
+      onStart={() => true}
+      startingMode={startingMode}
       onOpenWorkshop={() => {}}
       titleLongPress={noopHandlers}
     />,
@@ -71,6 +72,37 @@ describe('Menu title — wordmark image', () => {
     expect(html).toContain('找不同 · 区域识别 · 答题小游戏');
     // spot_diff MODE_OPTIONS label is intentionally untouched (todo 2 scope).
     expect(html).toContain('双图对比 · 找出差异');
+  });
+});
+
+describe('Menu direct-launch structure', () => {
+  it('puts source selection before mode commands and removes the extra start button', () => {
+    const html = renderMenuHtml();
+
+    expect(html.indexOf('id="menu-source-heading"')).toBeLessThan(
+      html.indexOf('id="menu-mode-heading"'),
+    );
+    expect(html).not.toContain('menu__start');
+    expect(html.match(/mode-card--entry/g)).toHaveLength(2);
+    expect(html.match(/进入游戏 →/g)).toHaveLength(2);
+  });
+
+  it('defaults to the official color theme and gives both source options distinct modifiers', () => {
+    const html = renderMenuHtml();
+
+    expect(html).toContain('menu--source-official');
+    expect(html).toContain('source-toggle__option--official source-toggle--active');
+    expect(html).toContain('source-toggle__option--mixed');
+    expect(html).toContain('aria-pressed="true"');
+  });
+
+  it('shows the launched mode as busy and disables both commands while loading', () => {
+    const html = renderMenuHtml('spot_diff');
+
+    expect(html).toContain('mode-card--loading');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('正在加载…');
+    expect(html.match(/disabled/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
   });
 });
 

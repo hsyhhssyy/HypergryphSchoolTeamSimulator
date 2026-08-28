@@ -97,6 +97,9 @@ function generatePng(width: number, height: number, variant = 0): Buffer {
 /** The 800×600 fixtures — same dims as every official seed image. */
 const PNG_800x600 = generatePng(800, 600, 0);
 const PNG_800x600_VARIANT = generatePng(800, 600, 7);
+/** Portrait fixture: forces the phone page to scroll around the game image. */
+const PNG_800x1600 = generatePng(800, 1600, 11);
+const PNG_200x1920 = generatePng(200, 1920, 13);
 
 // ————————————— contain-transform math (mirror of src/utils/hitDetection) ————
 
@@ -272,8 +275,8 @@ async function hudScore(page: Page): Promise<number> {
 }
 
 /**
- * Menu → pick mode + source → 开始游戏. Returns the /api/questions request URL
- * the app fired (asserted by scenario 1) and waits for the HUD to appear.
+ * Menu → pick source → tap a mode command to launch directly. Returns
+ * the /api/questions request URL (asserted by scenario 1) and waits for HUD.
  */
 async function startGame(
   page: Page,
@@ -282,15 +285,13 @@ async function startGame(
 ): Promise<string> {
   await page.goto('/');
   await expect(page.locator('.menu')).toBeVisible();
-  const modeCard = page.locator('.mode-card', { hasText: modeLabel });
-  await tapLocator(page, modeCard);
-  await expect(modeCard).toHaveAttribute('aria-pressed', 'true');
   const sourceOption = page.locator('.source-toggle__option', { hasText: sourceLabel });
   await tapLocator(page, sourceOption);
   await expect(sourceOption).toHaveAttribute('aria-pressed', 'true');
+  const modeCard = page.locator('.mode-card--entry', { hasText: modeLabel });
   const [request] = await Promise.all([
     page.waitForRequest((r) => r.url().includes('/api/questions?')),
-    tapLocator(page, page.locator('.menu__start')),
+    tapLocator(page, modeCard),
   ]);
   await expect(page.locator('.hud')).toBeVisible();
   return request.url();
@@ -357,10 +358,16 @@ async function submitWorkshopViaUI(
     .locator('.workshop-upload__input')
     .nth(0)
     .setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: PNG_800x600 });
+  await expect(page.getByRole('dialog', { name: '裁切图片 A' })).toBeVisible();
+  await tapLocator(page, page.getByRole('button', { name: '应用裁切' }));
+  await expect(page.getByRole('dialog', { name: '裁切图片 A' })).toHaveCount(0);
   await page
     .locator('.workshop-upload__input')
     .nth(1)
     .setInputFiles({ name: 'b.png', mimeType: 'image/png', buffer: PNG_800x600_VARIANT });
+  await expect(page.getByRole('dialog', { name: '裁切与校准图片 B' })).toBeVisible();
+  await tapLocator(page, page.getByRole('button', { name: '应用校准' }));
+  await expect(page.getByRole('dialog', { name: '裁切与校准图片 B' })).toHaveCount(0);
 
   // Editor appears once image A loads; geometry is set on onLoad.
   const editorImg = page.locator('.workshop-editor__img');
@@ -430,7 +437,7 @@ test.beforeEach(async ({ context }) => {
 // —————————————————————————————— the 11 scenarios ———————————————————————————
 
 test.describe('h5-spot-diff-game full E2E', () => {
-  test('1. menu → select 找不同 + 仅官方题目 → 开始游戏 starts a spot_diff game', async ({
+  test('1. menu → select source → tap 找不同 directly starts a spot_diff game', async ({
     page,
   }) => {
     const requestUrl = await startGame(page, '找不同', '仅官方题目');
@@ -438,6 +445,57 @@ test.describe('h5-spot-diff-game full E2E', () => {
     expect(requestUrl).toContain('source=official');
     expect(requestUrl).toContain('count=5');
     await expect(page.locator('.game-screen')).toBeVisible();
+  });
+
+  test('1b. source switch recolors direct entries; rapid double click sends one request', async ({
+    page,
+    context,
+  }) => {
+    let requestCount = 0;
+    let requestUrl = '';
+    await context.route('**/api/questions?**', async (route) => {
+      requestCount += 1;
+      requestUrl = route.request().url();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await route.fulfill({
+        json: [
+          {
+            id: 'direct-launch-test',
+            mode: 'find_area',
+            title: '直接开始测试',
+            description: '点击图中目标区域。',
+            imageA: 'https://picsum.photos/seed/direct-launch-test/800/600',
+            differences: [{ type: 'circle', x: 200, y: 200, radius: 40 }],
+            showCount: true,
+            source: 'workshop',
+            authorName: 'E2E',
+            status: 'approved',
+            likes: 0,
+            dislikes: 0,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+    });
+
+    await page.goto('/');
+    const entry = page.locator('.mode-card--entry', { hasText: '区域识别' });
+    const officialBackground = await entry.evaluate((el) => getComputedStyle(el).backgroundImage);
+    const mixed = page.locator('.source-toggle__option--mixed');
+    await tapLocator(page, mixed);
+    await expect(mixed).toHaveAttribute('aria-pressed', 'true');
+    const mixedBackground = await entry.evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(mixedBackground).not.toBe(officialBackground);
+
+    // Two synchronous DOM clicks exercise the pre-render race window.
+    await entry.evaluate((el) => {
+      (el as HTMLButtonElement).click();
+      (el as HTMLButtonElement).click();
+    });
+    await expect(page.locator('.hud')).toBeVisible();
+    expect(requestCount).toBe(1);
+    expect(requestUrl).toContain('mode=find_area');
+    expect(requestUrl).toContain('source=mixed');
   });
 
   test('2. GameScreen renders two images stacked vertically (mobile) + HUD', async ({
@@ -472,7 +530,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
     expect(Math.abs(b1!.x - b0!.x), 'stacked: panels share the same column x').toBeLessThan(2);
   });
 
-  test('3. tapping a correct difference draws green circles + score +100', async ({ page }) => {
+  test('3. tapping a correct difference draws green circles + score +1', async ({ page }) => {
     await startGame(page, '找不同', '仅官方题目');
     const title = await currentTitle(page);
     const diffs = OFFICIAL_SPOT_DIFF[title]!;
@@ -481,25 +539,32 @@ test.describe('h5-spot-diff-game full E2E', () => {
     await tapNativePoint(page, 0, diffCenter(diffs[0]!));
     // Green marker on BOTH panels for the shared found index.
     await expect(page.locator('.image-panel-marker')).toHaveCount(2);
-    await expect(page.getByTestId('hud-score')).toHaveText('得分 100');
-    expect(await hudScore(page)).toBe(100);
+    await expect(page.getByTestId('hud-score')).toHaveText('得分 1');
+    expect(await hudScore(page)).toBe(1);
   });
 
-  test('4. tapping a wrong spot shows the red ✕ and subtracts −30', async ({ page }) => {
+  test('4. tapping a wrong spot shows the red ✕ and subtracts 10 seconds', async ({ page }) => {
     await startGame(page, '找不同', '仅官方题目');
     const title = await currentTitle(page);
     const diffs = OFFICIAL_SPOT_DIFF[title]!;
 
-    // One correct find first (score 0 → 100) so the −30 delta is observable
-    // (the reducer floors the score at 0).
+    // A wrong tap never changes the correct-position score.
     await tapNativePoint(page, 0, diffCenter(diffs[0]!));
     await expect(page.locator('.image-panel-marker')).toHaveCount(2);
 
     await tapNativePoint(page, 0, SAFE_NATIVE_POINT);
-    // Red ✕ flash (fades out after 600ms — assert it promptly).
+    // Viewport-fixed error card makes the time penalty readable.
     await expect(page.locator('.wrong-mark')).toBeVisible();
-    await expect(page.getByTestId('hud-score')).toHaveText('得分 70');
-    expect(await hudScore(page)).toBe(70);
+    await expect(page.locator('.wrong-mark')).toContainText('点错啦');
+    await expect(page.locator('.wrong-mark')).toContainText('−10 秒');
+    await expect(page.getByTestId('hud-score')).toHaveText('得分 1');
+    expect(await hudScore(page)).toBe(1);
+
+    // The strengthened feedback holds long enough to read, then dismisses.
+    await page.waitForTimeout(900);
+    await expect(page.locator('.wrong-mark')).toBeVisible();
+    await page.waitForTimeout(700);
+    await expect(page.locator('.wrong-mark')).toHaveCount(0);
   });
 
   test('5. finding all differences → 本关完成 → result screen after the last question', async ({
@@ -522,8 +587,13 @@ test.describe('h5-spot-diff-game full E2E', () => {
     await tapLocator(page, page.getByTestId('result-replay'));
     await expect(page.locator('.menu')).toBeVisible();
     await expect(page.locator('.mode-card')).toHaveCount(2);
-    // Fresh selections: start button disabled again until a mode is picked.
-    await expect(page.locator('.menu__start')).toBeDisabled();
+    // Modes are direct commands; source resets to the official default.
+    await expect(page.locator('.menu__start')).toHaveCount(0);
+    await expect(page.locator('.source-toggle__option--official')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(page.locator('.mode-card--entry')).toHaveCount(2);
   });
 
   test('7. find_area mode renders a single image + title/description', async ({ page }) => {
@@ -538,7 +608,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
     expect(description !== null && description.trim().length > 0).toBe(true);
   });
 
-  test('8. find_area: tapping a zone draws the green circle + score +100', async ({ page }) => {
+  test('8. find_area: tapping a zone draws the green circle + score +1', async ({ page }) => {
     await startGame(page, '区域识别', '仅官方题目');
     const title = await currentTitle(page);
     const diffs = OFFICIAL_FIND_AREA[title]!;
@@ -546,7 +616,103 @@ test.describe('h5-spot-diff-game full E2E', () => {
 
     await tapNativePoint(page, 0, diffCenter(diffs[0]!));
     await expect(page.locator('.image-panel-marker')).toHaveCount(1);
-    await expect(page.getByTestId('hud-score')).toHaveText('得分 100');
+    await expect(page.getByTestId('hud-score')).toHaveText('得分 1');
+  });
+
+  test('8b. touch swipe scrolls a tall image without judging; a post-scroll tap stays accurate', async ({
+    page,
+    context,
+  }) => {
+    const target: Point = { x: 400, y: 1200 };
+    await context.route('https://touch-scroll.test/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', body: PNG_800x1600 }),
+    );
+    await context.route('**/api/questions?**', (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: 'touch-scroll-regression',
+            mode: 'find_area',
+            title: '触屏滚动回归测试',
+            description: '上滑只滚动，轻点才作答。',
+            imageA: 'https://touch-scroll.test/tall.png',
+            differences: [{ type: 'circle', ...target, radius: 40 }],
+            showCount: true,
+            source: 'official',
+            authorName: 'E2E',
+            status: 'approved',
+            likes: 0,
+            dislikes: 0,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    );
+
+    await startGame(page, '区域识别', '仅官方题目');
+    const img = page.locator('.game-panels img.image-panel-img');
+    const { naturalW, naturalH } = await loadedImageBox(img);
+    expect({ naturalW, naturalH }).toEqual({ naturalW: 800, naturalH: 1600 });
+
+    const overlay = page.locator('.image-panel-overlay');
+    await expect(overlay).toHaveCSS('touch-action', 'pan-y pinch-zoom');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const box = await overlay.boundingBox();
+    if (box === null) throw new Error('touch overlay has no bounding box');
+
+    // Send a trusted touch stream through Chromium's gesture recognizer. It
+    // must pan the document and must not call onHit/onMiss on release.
+    const cdp = await context.newCDPSession(page);
+    const x = box.x + box.width / 2;
+    const startY = Math.min(box.y + box.height * 0.75, 720);
+    const beforeScrollY = await page.evaluate(() => window.scrollY);
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x, y: startY, id: 1, radiusX: 2, radiusY: 2, force: 1 }],
+    });
+    for (const delta of [30, 70, 120, 180]) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [
+          { x, y: startY - delta, id: 1, radiusX: 2, radiusY: 2, force: 1 },
+        ],
+      });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(beforeScrollY + 20);
+    await expect(page.getByTestId('hud-score')).toHaveText('得分 0');
+    await expect(page.locator('.wrong-mark')).toHaveCount(0);
+    await expect(page.locator('.image-panel-marker')).toHaveCount(0);
+
+    // This measurement happens after scrolling. ImagePanel must likewise use
+    // the live viewport rect (scroll does not trigger ResizeObserver).
+    await tapNativePoint(page, 0, target);
+    await expect(page.locator('.image-panel-marker')).toHaveCount(1);
+    await expect.poll(() => hudScore(page)).toBe(1);
+  });
+
+  test('8c. mobile crop handles support an exact 200×1920 → 200×100 crop', async ({ page }) => {
+    await page.goto('/');
+    await tapLocator(page, page.locator('.menu__workshop'));
+    await page.locator('.workshop-upload__input').nth(0).setInputFiles({
+      name: 'strip.png',
+      mimeType: 'image/png',
+      buffer: PNG_200x1920,
+    });
+    const dialog = page.getByRole('dialog', { name: '裁切图片 A' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.image-adjust__handle')).toHaveCount(4);
+    await dialog.getByLabel('宽').fill('200');
+    await dialog.getByLabel('高').fill('100');
+    await tapLocator(page, dialog.getByRole('button', { name: '应用裁切' }));
+    const editorImage = page.locator('.workshop-editor__img');
+    await expect.poll(() => editorImage.evaluate((node) => ({
+      width: (node as HTMLImageElement).naturalWidth,
+      height: (node as HTMLImageElement).naturalHeight,
+    }))).toEqual({ width: 200, height: 100 });
   });
 
   test.describe.serial('workshop loop (auto-approve, no admin step)', () => {
@@ -625,9 +791,8 @@ test.describe('h5-spot-diff-game full E2E', () => {
       );
 
       // 包含创意工坊 + same mode (spot_diff) → start a NEW game.
-      await tapLocator(page, page.locator('.mode-card', { hasText: '找不同' }));
       await tapLocator(page, page.locator('.source-toggle__option', { hasText: '包含创意工坊' }));
-      await tapLocator(page, page.locator('.menu__start'));
+      await tapLocator(page, page.locator('.mode-card--entry', { hasText: '找不同' }));
 
       await expect(page.getByTestId('question-title')).toHaveText(submitted.title);
 
@@ -644,7 +809,7 @@ test.describe('h5-spot-diff-game full E2E', () => {
       // PLAYABLE: tap the authored difference → green markers + score.
       await tapNativePoint(page, 0, submitted.native);
       await expect(page.locator('.image-panel-marker')).toHaveCount(2);
-      expect(await hudScore(page)).toBeGreaterThanOrEqual(100);
+      expect(await hudScore(page)).toBe(1);
 
       // Single-question round → 本关完成 → result.
       await expect(page.locator('.round-end')).toBeVisible();
