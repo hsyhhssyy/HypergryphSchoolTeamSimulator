@@ -1,0 +1,43 @@
+name: Validate questions
+
+on:
+  pull_request:
+    paths:
+      - "public/questions/items/**"
+      - "scripts/build-question-bank.ts"
+      - "shared/types.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/validate-questions.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "public/questions/items/**"
+      - "scripts/build-question-bank.ts"
+      - "shared/types.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/validate-questions.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: questions-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run questions:check
+      - run: npm test
+      - run: npm run build

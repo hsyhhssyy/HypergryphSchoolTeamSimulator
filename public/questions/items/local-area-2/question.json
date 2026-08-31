@@ -1,0 +1,18 @@
+{
+  "id": "local-area-2",
+  "mode": "find_area",
+  "title": "区域识别：寻找终端",
+  "description": "点击画面中所有发光的蓝色终端。",
+  "imageA": "questions/items/local-area-2/a.svg",
+  "differences": [
+    { "type": "rect", "x": 105, "y": 340, "width": 90, "height": 100 },
+    { "type": "rect", "x": 355, "y": 140, "width": 90, "height": 100 },
+    { "type": "rect", "x": 605, "y": 340, "width": 90, "height": 100 }
+  ],
+  "showCount": true,
+  "source": "official",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31"
+}

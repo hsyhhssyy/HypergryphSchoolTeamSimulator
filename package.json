@@ -7,8 +7,12 @@
     "node": ">=22"
   },
   "scripts": {
+    "questions:build": "node --experimental-strip-types scripts/build-question-bank.ts",
+    "questions:check": "node --experimental-strip-types scripts/build-question-bank.ts --check",
+    "predev": "npm run questions:build",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "prebuild": "npm run questions:build",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json && vite build",
     "preview": "vite preview",
     "optimize:assets": "node scripts/optimize-title-image.mjs",
     "test": "vitest run",

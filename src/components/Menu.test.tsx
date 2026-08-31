@@ -5,9 +5,12 @@ import { Menu } from './Menu';
 describe('Menu static random-game entry', () => {
   it('offers one random start action and no selectors', () => {
     const html = renderToString(<Menu onStart={() => true} />);
-    expect(html).toContain('随机玩法');
+    expect(html).toContain('开始游戏');
     expect(html.match(/mode-card--entry/g)).toHaveLength(1);
     expect(html).not.toContain('source-toggle');
+    expect(html).not.toContain('找不同');
+    expect(html).not.toContain('区域识别');
+    expect(html).not.toContain('本地题库');
   });
 
   it('opens the guided submission chooser', () => {
@@ -19,7 +22,7 @@ describe('Menu static random-game entry', () => {
 
   it('shows a disabled loading entry', () => {
     const html = renderToString(<Menu onStart={() => true} starting />);
-    expect(html).toContain('正在抽取…');
+    expect(html).toContain('正在准备…');
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('disabled');
   });

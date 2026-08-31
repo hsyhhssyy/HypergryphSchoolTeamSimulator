@@ -1,0 +1,18 @@
+{
+  "id": "local-spot-2",
+  "mode": "spot_diff",
+  "title": "找不同：夜间教室",
+  "description": "对比两张图，找出两处不同。",
+  "imageA": "questions/items/local-spot-2/a.svg",
+  "imageB": "questions/items/local-spot-2/b.svg",
+  "differences": [
+    { "type": "circle", "x": 190, "y": 170, "radius": 48 },
+    { "type": "rect", "x": 570, "y": 350, "width": 90, "height": 70 }
+  ],
+  "showCount": true,
+  "source": "official",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31"
+}

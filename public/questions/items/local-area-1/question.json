@@ -1,0 +1,18 @@
+{
+  "id": "local-area-1",
+  "mode": "find_area",
+  "title": "区域识别：寻找徽章",
+  "description": "点击画面中所有黄色星形徽章。",
+  "imageA": "questions/items/local-area-1/a.svg",
+  "differences": [
+    { "type": "circle", "x": 150, "y": 150, "radius": 48 },
+    { "type": "circle", "x": 410, "y": 330, "radius": 48 },
+    { "type": "circle", "x": 650, "y": 190, "radius": 48 }
+  ],
+  "showCount": true,
+  "source": "official",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31"
+}

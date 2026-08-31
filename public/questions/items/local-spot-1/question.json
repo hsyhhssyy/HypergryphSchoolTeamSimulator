@@ -1,0 +1,19 @@
+{
+  "id": "local-spot-1",
+  "mode": "spot_diff",
+  "title": "找不同：校园午后",
+  "description": "对比两张图，找出三处不同。",
+  "imageA": "questions/items/local-spot-1/a.svg",
+  "imageB": "questions/items/local-spot-1/b.svg",
+  "differences": [
+    { "type": "circle", "x": 150, "y": 130, "radius": 42 },
+    { "type": "circle", "x": 610, "y": 190, "radius": 42 },
+    { "type": "rect", "x": 365, "y": 390, "width": 70, "height": 70 }
+  ],
+  "showCount": true,
+  "source": "official",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31"
+}

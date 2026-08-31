@@ -7,5 +7,7 @@ dist/
 test-results/
 playwright-report/
 public/qa/
+/public/questions/questions.json
+/.github/submission-preview.md
 *.log
 .DS_Store

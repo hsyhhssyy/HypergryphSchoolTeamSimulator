@@ -37,17 +37,14 @@ export function Menu({ onStart, startError = null, starting = false }: MenuProps
             <img className="menu__title-img" src={`${import.meta.env.BASE_URL}wordmark.png`} alt="鹰角网络校队" draggable={false} decoding="async" />
           </picture>
         </h1>
-        <p className="text-muted">本地题库 · 每局随机玩法 · 答题小游戏</p>
       </header>
 
       <section className="menu__section" aria-labelledby="menu-mode-heading">
         <h2 id="menu-mode-heading" className="menu__heading">准备好了吗？</h2>
-        <p className="menu__source-hint">开始时将随机分配「找不同」或「区域识别」玩法</p>
         <button type="button" className={`mode-card mode-card--entry${starting ? ' mode-card--loading' : ''}`} aria-busy={starting} disabled={starting} onClick={onStart}>
           <ShuffleIcon />
-          <span className="mode-card__label">随机玩法</span>
-          <span className="mode-card__desc">题目全部来自项目本地题库</span>
-          <span className="mode-card__action">{starting ? '正在抽取…' : '开始游戏 →'}</span>
+          <span className="mode-card__label">开始游戏</span>
+          <span className="mode-card__action">{starting ? '正在准备…' : '开始 →'}</span>
         </button>
       </section>
 

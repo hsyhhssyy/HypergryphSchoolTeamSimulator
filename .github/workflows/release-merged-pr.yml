@@ -1,0 +1,89 @@
+name: Release merged pull request
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  issues: write
+  pages: write
+  id-token: write
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Create next release tag
+        id: version
+        shell: bash
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for attempt in 1 2 3 4 5; do
+            git fetch --force --tags origin
+            latest_tag="$(git tag --list | awk '/^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/' | sort -V | tail -n 1)"
+            if [[ -z "${latest_tag}" ]]; then
+              latest_tag="v0.0.0.0"
+            fi
+
+            version="${latest_tag#v}"
+            IFS='.' read -r major minor patch build_number <<< "${version}"
+            release_tag="v${major}.${minor}.${patch}.$((build_number + 1))"
+
+            git tag -d "${release_tag}" >/dev/null 2>&1 || true
+            git tag -a "${release_tag}" "${MERGE_SHA}" -m "Release ${release_tag} from PR #${PR_NUMBER}"
+            if git push origin "refs/tags/${release_tag}"; then
+              echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+              echo "Created ${release_tag} at ${MERGE_SHA}"
+              exit 0
+            fi
+
+            git tag -d "${release_tag}" >/dev/null 2>&1 || true
+            echo "Tag ${release_tag} was claimed concurrently; retrying (${attempt}/5)."
+          done
+
+          echo "Unable to allocate a release tag after 5 attempts."
+          exit 1
+      - name: Update submission issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types scripts/update-submission-status.ts merged "${{ steps.version.outputs.release_tag }}"
+
+  deploy:
+    needs: tag
+    uses: ./.github/workflows/deploy-pages.yml
+    with:
+      release_ref: ${{ needs.tag.outputs.release_tag }}
+    secrets: inherit
+
+  rejected:
+    if: github.event.pull_request.merged == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Update submission issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types scripts/update-submission-status.ts rejected

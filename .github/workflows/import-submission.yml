@@ -1,0 +1,74 @@
+name: Import question submission
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: submission-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  import:
+    if: github.event.issue.state == 'open' && (contains(github.event.issue.labels.*.name, '题目投稿') || startsWith(github.event.issue.title, '[题目投稿]'))
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_TITLE: ${{ github.event.issue.title }}
+      BRANCH_NAME: submission/issue-${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Download, validate and render submission
+        run: node --experimental-strip-types scripts/import-submission-issue.ts
+      - run: npm run questions:check
+      - run: npm test
+      - run: npm run build
+      - name: Commit submission branch
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "${BRANCH_NAME}"
+          git add "public/questions/items/submission-${ISSUE_NUMBER}-"* ".github/submission-previews/issue-${ISSUE_NUMBER}"
+          git commit -m "Add submission from issue #${ISSUE_NUMBER}"
+          git fetch origin "refs/heads/${BRANCH_NAME}:refs/remotes/origin/${BRANCH_NAME}" || true
+          git push --force-with-lease origin "HEAD:refs/heads/${BRANCH_NAME}"
+          echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+      - name: Create or find pull request
+        id: pull
+        shell: bash
+        run: |
+          set -euo pipefail
+          pull_number="$(gh pr list --head "${BRANCH_NAME}" --state open --json number --jq '.[0].number // empty')"
+          if [[ -z "${pull_number}" ]]; then
+            pull_url="$(gh pr create --head "${BRANCH_NAME}" --title "[题目投稿 #${ISSUE_NUMBER}] ${ISSUE_TITLE}" --body "Closes #${ISSUE_NUMBER}. 由投稿自动化生成；请在原 Issue 中审核标注图和题目内容。")"
+            pull_number="${pull_url##*/}"
+          fi
+          echo "number=${pull_number}" >> "${GITHUB_OUTPUT}"
+      - name: Publish preview in issue
+        run: node --experimental-strip-types scripts/publish-submission-preview.ts "${ISSUE_NUMBER}" "${{ steps.pull.outputs.number }}" "${{ steps.commit.outputs.sha }}"
+      - name: Mark issue as awaiting review
+        shell: bash
+        run: |
+          gh label create "等待审核" --color "FBCA04" --description "投稿已生成预览，等待维护者审核" --force
+          gh issue edit "${ISSUE_NUMBER}" --add-label "等待审核"
+      - name: Report processing failure
+        if: failure()
+        shell: bash
+        run: |
+          gh issue comment "${ISSUE_NUMBER}" --body "❌ 投稿包自动处理失败。请检查 ZIP 是否由最新投稿工具生成，并查看 [本次运行日志](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})。修改 Issue 后会自动重试。"

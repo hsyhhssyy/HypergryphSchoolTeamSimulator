@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢投稿！请先从游戏主页打开「投稿工具」，完成一道或多道题目并下载 ZIP，再将 ZIP 拖入下方。维护者审核后会把题目加入本地题库。
+        感谢投稿！请先从游戏主页打开「投稿工具」，完成一道或多道题目并下载 ZIP，再将 ZIP 拖入下方。提交 Issue 后，自动化会解包、校验、生成答案标注图和审核 PR，并将完整预览发布在本 Issue 中。
   - type: textarea
     id: package
     attributes:

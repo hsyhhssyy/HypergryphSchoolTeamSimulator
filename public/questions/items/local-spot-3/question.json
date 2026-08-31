@@ -1,0 +1,19 @@
+{
+  "id": "local-spot-3",
+  "mode": "spot_diff",
+  "title": "找不同：社团活动室",
+  "description": "仔细观察两张图，找出三处变化。",
+  "imageA": "questions/items/local-spot-3/a.svg",
+  "imageB": "questions/items/local-spot-3/b.svg",
+  "differences": [
+    { "type": "circle", "x": 120, "y": 450, "radius": 42 },
+    { "type": "circle", "x": 400, "y": 160, "radius": 42 },
+    { "type": "circle", "x": 670, "y": 430, "radius": 46 }
+  ],
+  "showCount": true,
+  "source": "official",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31"
+}
