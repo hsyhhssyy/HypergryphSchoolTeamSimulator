@@ -1,0 +1,29 @@
+name: 题目投稿
+description: 向本地题库投稿「找不同」或「区域识别」题目
+title: "[题目投稿] "
+labels: ["题目投稿"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢投稿！请先从游戏主页打开「投稿工具」，完成一道或多道题目并下载 ZIP，再将 ZIP 拖入下方。维护者审核后会把题目加入本地题库。
+  - type: textarea
+    id: package
+    attributes:
+      label: 投稿 ZIP
+      description: 请把投稿工具生成的 .zip 文件直接拖入此处上传。ZIP 已包含图片、答案选区和题目说明。
+      placeholder: 将 ZIP 拖到这里，等待上传完成后再提交 Issue。
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 补充说明
+      description: 可以填写素材来源、授权信息或希望维护者注意的内容。
+  - type: checkboxes
+    id: license
+    attributes:
+      label: 授权确认
+      options:
+        - label: 我确认拥有图片使用权，并同意本项目收录、修改和公开发布这些素材。
+          required: true

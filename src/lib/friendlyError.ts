@@ -14,8 +14,6 @@
  * - everything else → the caller's domain fallback ("加载失败，请重试" etc.),
  *   which is where the retry affordance lives (the button IS the retry).
  */
-import { ApiError } from '@/lib/api';
-
 /** Network-failure message — fetch threw before any HTTP response arrived. */
 export const NETWORK_ERROR_MESSAGE = '网络连接异常，请检查网络后重试';
 /** HTTP 429 — the server rate-limits submissions (todo 16). */
@@ -29,9 +27,5 @@ export const SERVER_ERROR_MESSAGE = '服务暂时不可用，请稍后重试';
  */
 export function friendlyErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof TypeError) return NETWORK_ERROR_MESSAGE;
-  if (err instanceof ApiError) {
-    if (err.status === 429) return RATE_LIMIT_MESSAGE;
-    if (err.status >= 500) return SERVER_ERROR_MESSAGE;
-  }
   return fallback;
 }

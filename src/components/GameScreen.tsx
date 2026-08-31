@@ -32,7 +32,7 @@ import type { Dispatch } from 'preact/hooks';
 import type { GamePhase, GameState, Question } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { WRONG_TIME_PENALTY_SECONDS, type TimerControls } from '@/hooks/useTimer';
-import { resolveImageUrl } from '@/lib/api';
+import { resolveQuestionAsset } from '@/lib/questions';
 import { preloadImage } from '@/utils/preload';
 import { Confetti } from '@/components/Confetti';
 import { HUD } from '@/components/HUD';
@@ -141,8 +141,8 @@ export function useWrongClickCooldown(): {
  * (menu, last question, result) → no-op.
  */
 export function preloadQuestion(question: Question): Promise<void> {
-  const urls = [resolveImageUrl(question.imageA)];
-  if (question.imageB !== undefined) urls.push(resolveImageUrl(question.imageB));
+  const urls = [resolveQuestionAsset(question.imageA)];
+  if (question.imageB !== undefined) urls.push(resolveQuestionAsset(question.imageB));
   return Promise.all(urls.map(preloadImage)).then(() => undefined);
 }
 
@@ -299,7 +299,7 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
         }`}
       >
         <ImagePanel
-          src={resolveImageUrl(currentQuestion.imageA)}
+          src={resolveQuestionAsset(currentQuestion.imageA)}
           differences={currentQuestion.differences}
           foundIndices={state.foundIndices}
           onHit={handleHit}
@@ -308,7 +308,7 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
         />
         {currentQuestion.imageB !== undefined && (
           <ImagePanel
-            src={resolveImageUrl(currentQuestion.imageB)}
+            src={resolveQuestionAsset(currentQuestion.imageB)}
             differences={currentQuestion.differences}
             foundIndices={state.foundIndices}
             onHit={handleHit}

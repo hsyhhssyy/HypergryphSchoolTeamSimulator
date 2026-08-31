@@ -1,19 +1,16 @@
-import { useRef, useState } from 'preact/hooks';
-import type { GameState, QuestionMode, QuestionSourceQuery } from '@shared/types';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import type { GameState } from '@shared/types';
 import type { JSX } from 'preact';
 import type { Dispatch } from 'preact/hooks';
 import { useGameState, type GameAction } from '@/hooks/useGameState';
 import { useTimer, type TimerControls } from '@/hooks/useTimer';
-import { useLongPress, type LongPressHandlers } from '@/hooks/useLongPress';
-import { AdminReview } from '@/components/AdminReview';
 import { AudioPlayer } from '@/components/AudioPlayer';
 import { GAME_TIME_LIMIT, GameScreen } from '@/components/GameScreen';
 import { Menu } from '@/components/Menu';
 import { Result } from '@/components/Result';
-import { WorkshopSubmit } from '@/components/WorkshopSubmit';
-import { fetchQuestions } from '@/lib/api';
+import { SubmissionTool } from '@/components/SubmissionTool';
+import { loadRandomGameQuestions } from '@/lib/questions';
 import { friendlyErrorMessage } from '@/lib/friendlyError';
-import { getOrCreateUserId } from '@/lib/userId';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 const QUESTION_COUNT = 5;
@@ -25,19 +22,20 @@ const QUESTION_COUNT = 5;
  * moderation page. Game state is untouched while the view is not 'game' —
  * returning to 'game' resumes where it left off.
  */
-type View = 'game' | 'workshop' | 'admin';
-
 export function App() {
   const { state, dispatch } = useGameState();
   const [startError, setStartError] = useState<string | null>(null);
-  const [startingMode, setStartingMode] = useState<QuestionMode | null>(null);
+  const [starting, setStarting] = useState(false);
   const startInFlightRef = useRef(false);
-  const [view, setView] = useState<View>('game');
   /** Offline detection (todo 24) — banner renders while navigator is offline. */
   const online = useOnlineStatus();
+  const [route, setRoute] = useState(() => window.location.hash);
 
-  /** Hidden admin entry: hold the Menu title for 3s (todo 22). */
-  const titleLongPress = useLongPress(() => setView('admin'));
+  useEffect(() => {
+    const syncRoute = () => setRoute(window.location.hash);
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
 
   /**
    * THE timer (todo 9) lives at App level and is passed down — the reducer
@@ -56,19 +54,18 @@ export function App() {
    * so the ref closes the pre-render double-tap window and prevents duplicate
    * requests while the selected card shows its loading state.
    */
-  const handleStart = (mode: QuestionMode, source: QuestionSourceQuery): boolean => {
+  const handleStart = (): boolean => {
     if (startInFlightRef.current) return false;
     startInFlightRef.current = true;
-    getOrCreateUserId();
     setStartError(null);
-    setStartingMode(mode);
-    fetchQuestions(mode, source, QUESTION_COUNT)
-      .then((questions) => {
+    setStarting(true);
+    loadRandomGameQuestions(QUESTION_COUNT)
+      .then(({ mode, questions }) => {
         if (questions.length === 0) {
           setStartError('暂无可用题目，请稍后再试');
           return;
         }
-        dispatch({ type: 'START_GAME', mode, source, questions });
+        dispatch({ type: 'START_GAME', mode, source: 'official', questions });
       })
       .catch((err: unknown) => {
         console.error('加载题目失败:', err);
@@ -76,7 +73,7 @@ export function App() {
       })
       .finally(() => {
         startInFlightRef.current = false;
-        setStartingMode(null);
+        setStarting(false);
       });
     return true;
   };
@@ -86,22 +83,12 @@ export function App() {
       {/* Offline banner (todo 24) — a real signal: every fetch will fail
           while offline. Dismisses automatically on the `online` event. */}
       {!online && <OfflineBanner />}
-      {view === 'admin' ? (
-        <AdminReview onBack={() => setView('game')} />
-      ) : view === 'workshop' ? (
-        <WorkshopSubmit onBack={() => setView('game')} />
-      ) : (
-        renderPhase(
-          state,
-          dispatch,
-          handleStart,
-          startError,
-          startingMode,
-          timer,
-          () => setView('workshop'),
-          titleLongPress,
-        )
-      )}
+      {route === '#/submit' ? (
+        <SubmissionTool onBack={() => {
+          history.replaceState(null, '', `${location.pathname}${location.search}`);
+          setRoute('');
+        }} />
+      ) : renderPhase(state, dispatch, handleStart, startError, starting, timer)}
       {/* Floating BGM player — present on every screen, never autoplays. */}
       <AudioPlayer />
     </>
@@ -111,12 +98,10 @@ export function App() {
 function renderPhase(
   state: GameState,
   dispatch: Dispatch<GameAction>,
-  handleStart: (mode: QuestionMode, source: QuestionSourceQuery) => boolean,
+  handleStart: () => boolean,
   startError: string | null,
-  startingMode: QuestionMode | null,
+  starting: boolean,
   timer: TimerControls,
-  onOpenWorkshop: () => void,
-  titleLongPress: LongPressHandlers,
 ): JSX.Element {
   switch (state.phase) {
     case 'menu':
@@ -124,9 +109,7 @@ function renderPhase(
         <Menu
           onStart={handleStart}
           startError={startError}
-          startingMode={startingMode}
-          onOpenWorkshop={onOpenWorkshop}
-          titleLongPress={titleLongPress}
+          starting={starting}
         />
       );
     case 'playing':

@@ -167,3 +167,28 @@ export async function renderCroppedFile(
     height: output.height,
   };
 }
+
+/** Rotate the currently processed image by one quarter turn in-browser. */
+export async function renderRotatedFile(
+  sourceUrl: string,
+  originalName: string,
+  mimeType: string,
+  direction: -1 | 1,
+): Promise<{ file: File; dataUrl: string; width: number; height: number }> {
+  const image = new Image();
+  image.src = sourceUrl;
+  await image.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalHeight;
+  canvas.height = image.naturalWidth;
+  const context = canvas.getContext('2d');
+  if (context === null) throw new Error('当前浏览器无法处理图片');
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate(direction * Math.PI / 2);
+  context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+  const safeMime = mimeType === 'image/png' ? 'image/png' : mimeType === 'image/webp' ? 'image/webp' : 'image/jpeg';
+  const blob = await encodeForUpload(canvas, safeMime, TARGET_PROCESSED_IMAGE_BYTES);
+  const stem = originalName.replace(/\.[^.]+$/, '') || 'image';
+  const file = new File([blob], `${stem}-rotated.${extensionForMime(blob.type)}`, { type: blob.type });
+  return { file, dataUrl: await blobToDataUrl(blob), width: canvas.width, height: canvas.height };
+}

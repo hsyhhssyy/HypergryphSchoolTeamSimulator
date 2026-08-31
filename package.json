@@ -8,35 +8,26 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:all": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev\"",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "dev:api": "wrangler dev --port 8080 --ip 0.0.0.0",
-    "deploy:frontend": "vite build && wrangler pages deploy dist",
-    "deploy:api": "wrangler deploy",
-    "typecheck:api": "tsc --noEmit -p workers",
     "optimize:assets": "node scripts/optimize-title-image.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@preact/signals": "^2.11.0",
+    "fflate": "^0.8.3",
     "heic-to": "^1.5.2",
-    "hono": "^4.13.2",
     "preact": "^10.29.8",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260814.1",
     "@playwright/test": "^1.62.1",
     "@preact/preset-vite": "^2.10.6",
     "@types/node": "^22.20.1",
-    "concurrently": "^10.0.4",
     "preact-render-to-string": "^6.7.0",
     "sharp": "^0.35.3",
     "typescript": "~5.9.3",
     "vite": "^8.2.1",
-    "vitest": "^4.1.10",
-    "wrangler": "^4.123.0"
+    "vitest": "^4.1.10"
   }
 }

@@ -1,9 +1,0 @@
-{
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "lib": ["ES2022"],
-    "jsx": "preserve",
-    "types": ["@cloudflare/workers-types"]
-  },
-  "include": ["src", "../shared"]
-}

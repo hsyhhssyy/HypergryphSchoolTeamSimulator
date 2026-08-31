@@ -1,104 +1,28 @@
 import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import type { QuestionMode, QuestionSourceQuery } from '@shared/types';
-import type { LongPressHandlers } from '@/hooks/useLongPress';
 
-/**
- * Menu screen (todo 11) — PURELY PRESENTATIONAL.
- *
- * Holds only local UI selection state (source + last attempted mode). Everything else —
- * anonymous userId, question fetching, START_GAME dispatch — lives in
- * App.handleStart (App.tsx). This component never fetches and never touches
- * game state.
- */
+const ISSUE_URL =
+  'https://github.com/hsyhhssyy/HypergryphSchoolTeamSimulator/issues/new?template=question-submission.yml';
+
 export interface MenuProps {
-  /** Returns true when App accepts the launch (false while one is in flight). */
-  onStart: (mode: QuestionMode, source: QuestionSourceQuery) => boolean;
-  /** Fetch/load failure surfaced from App (todo 24 refines error states). */
+  onStart: () => boolean;
   startError?: string | null;
-  /** The directly-launched mode currently fetching; null keeps entries enabled. */
-  startingMode?: QuestionMode | null;
-  /** Switch the App-level view to the workshop submission form (todo 20). */
-  onOpenWorkshop: () => void;
-  /** Long-press gesture handlers for the app title (hidden admin entry). */
-  titleLongPress: LongPressHandlers;
+  starting?: boolean;
 }
 
-export interface ModeOption {
-  mode: QuestionMode;
-  label: string;
-  desc: string;
-}
-
-/** Shared with WorkshopSubmit (todo 20) — single source for mode labels. */
-export const MODE_OPTIONS: ModeOption[] = [
-  { mode: 'spot_diff', label: '找不同', desc: '双图对比 · 找出差异' },
-  { mode: 'find_area', label: '区域识别', desc: '单图寻物 · 点出位置' },
-];
-
-const SOURCE_OPTIONS: { value: QuestionSourceQuery; label: string }[] = [
-  { value: 'official', label: '仅官方题目' },
-  { value: 'mixed', label: '包含创意工坊' },
-];
-
-/** Inline SVG icons (no emoji-as-icon — lucide-style stroke icons). */
-function SpotDiffIcon() {
+function ShuffleIcon(): JSX.Element {
   return (
-    <svg
-      className="mode-card__icon"
-      viewBox="0 0 32 32"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="4" y="6" width="15" height="20" rx="3" />
-      <rect x="13" y="6" width="15" height="20" rx="3" />
-      <circle cx="16" cy="16" r="2.4" fill="currentColor" stroke="none" />
+    <svg className="mode-card__icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 8h4c7 0 9 16 16 16h4" /><path d="m24 20 4 4-4 4" />
+      <path d="M4 24h4c3 0 5-3 7-7M21 8h7" /><path d="m24 4 4 4-4 4" />
     </svg>
   );
 }
 
-function FindAreaIcon() {
+export function Menu({ onStart, startError = null, starting = false }: MenuProps) {
+  const [showSubmitChoices, setShowSubmitChoices] = useState(false);
   return (
-    <svg
-      className="mode-card__icon"
-      viewBox="0 0 32 32"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="16" cy="16" r="9" />
-      <path d="M16 3v6M16 23v6M3 16h6M23 16h6" />
-      <circle cx="16" cy="16" r="2.4" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-const MODE_ICONS: Record<QuestionMode, () => JSX.Element> = {
-  spot_diff: SpotDiffIcon,
-  find_area: FindAreaIcon,
-};
-
-export function Menu({
-  onStart,
-  startError = null,
-  startingMode = null,
-  onOpenWorkshop,
-  titleLongPress,
-}: MenuProps) {
-  const [lastMode, setLastMode] = useState<QuestionMode | null>(null);
-  const [source, setSource] = useState<QuestionSourceQuery>('official');
-
-  return (
-    <main className={`screen menu menu--source-${source}`}>
-      {/* Todo 5: decorative background stickers — aria-hidden + pointer-events
-          none (CSS), so they never intercept the title long-press. */}
+    <main className="screen menu menu--source-official">
       <div className="menu__stickers" aria-hidden="true">
         <span className="menu__sticker menu__sticker--star-1" />
         <span className="menu__sticker menu__sticker--star-2" />
@@ -106,150 +30,57 @@ export function Menu({
         <span className="menu__sticker menu__sticker--circle-2" />
         <span className="menu__sticker menu__sticker--dot" />
       </div>
-
       <header className="menu__hero">
-        <h1 className="font-display" {...titleLongPress}>
+        <h1 className="font-display">
           <picture>
-            <source type="image/webp" srcSet="/wordmark.webp" />
-            <img
-              className="menu__title-img"
-              src="/wordmark.png"
-              alt="鹰角网络校队"
-              draggable={false}
-              decoding="async"
-            />
+            <source type="image/webp" srcSet={`${import.meta.env.BASE_URL}wordmark.webp`} />
+            <img className="menu__title-img" src={`${import.meta.env.BASE_URL}wordmark.png`} alt="鹰角网络校队" draggable={false} decoding="async" />
           </picture>
         </h1>
-        <p className="text-muted">找不同 · 区域识别 · 答题小游戏</p>
+        <p className="text-muted">本地题库 · 每局随机玩法 · 答题小游戏</p>
       </header>
 
-      {/* Source comes first because choosing a mode now starts immediately. */}
-      <section className="menu__section" aria-labelledby="menu-source-heading">
-        <h2 id="menu-source-heading" className="menu__heading">
-          题目来源
-          <svg
-            className="menu__heading-squiggle"
-            viewBox="0 0 120 14"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M2 8 C 12 4, 28 4, 40 8 C 52 12, 68 12, 80 8 C 92 4, 108 4, 118 6"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </h2>
-        <p className="menu__source-hint">先选题库，再点击下方玩法直接开始</p>
-        <div className="source-toggle" role="group" aria-label="题目来源">
-          {SOURCE_OPTIONS.map((opt) => (
-            <button
-              type="button"
-              key={opt.value}
-              className={`source-toggle__option source-toggle__option--${opt.value}${
-                source === opt.value ? ' source-toggle--active' : ''
-              }`}
-              aria-pressed={source === opt.value}
-              disabled={startingMode !== null}
-              onClick={() => setSource(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
       <section className="menu__section" aria-labelledby="menu-mode-heading">
-        <h2 id="menu-mode-heading" className="menu__heading">
-          选择玩法·点击即开始
-          {/* Todo 5: hand-drawn squiggle underline — decorative, stroked via
-              the --color-accent token in CSS. */}
-          <svg
-            className="menu__heading-squiggle"
-            viewBox="0 0 120 14"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M2 8 C 12 4, 28 4, 40 8 C 52 12, 68 12, 80 8 C 92 4, 108 4, 118 6"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </h2>
-        <div className="menu__modes">
-          {MODE_OPTIONS.map((opt) => {
-            const Icon = MODE_ICONS[opt.mode];
-            const loading = startingMode === opt.mode;
-            return (
-              <button
-                type="button"
-                key={opt.mode}
-                className={`mode-card mode-card--entry${
-                  loading ? ' mode-card--loading' : ''
-                }`}
-                aria-label={`${opt.label}，${
-                  source === 'official' ? '仅官方题目' : '包含创意工坊'
-                }，点击开始游戏`}
-                aria-busy={loading}
-                disabled={startingMode !== null}
-                onClick={() => {
-                  if (onStart(opt.mode, source)) setLastMode(opt.mode);
-                }}
-              >
-                <Icon />
-                <span className="mode-card__label">{opt.label}</span>
-                <span className="mode-card__desc">{opt.desc}</span>
-                <span className="mode-card__action">
-                  {loading ? '正在加载…' : '进入游戏 →'}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <h2 id="menu-mode-heading" className="menu__heading">准备好了吗？</h2>
+        <p className="menu__source-hint">开始时将随机分配「找不同」或「区域识别」玩法</p>
+        <button type="button" className={`mode-card mode-card--entry${starting ? ' mode-card--loading' : ''}`} aria-busy={starting} disabled={starting} onClick={onStart}>
+          <ShuffleIcon />
+          <span className="mode-card__label">随机玩法</span>
+          <span className="mode-card__desc">题目全部来自项目本地题库</span>
+          <span className="mode-card__action">{starting ? '正在抽取…' : '开始游戏 →'}</span>
+        </button>
       </section>
 
-      <button
-        type="button"
-        className="btn btn--ghost menu__workshop"
-        aria-label="进入创意工坊投稿"
-        disabled={startingMode !== null}
-        onClick={onOpenWorkshop}
-      >
-        <svg
-          className="menu__workshop-icon"
-          viewBox="0 0 32 32"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-          <path d="m15 5 4 4" />
-        </svg>
-        创意工坊投稿
+      <button type="button" className="btn btn--ghost menu__workshop" onClick={() => setShowSubmitChoices(true)}>
+        投稿题目 ✦
       </button>
 
       {startError !== null && (
         <div className="menu__error-block">
-          <p role="alert" className="menu__error">
-            {startError}
-          </p>
-          {/* Retry re-runs onStart with the last mode + CURRENT source — the fetch
-              is owned by App.handleStart; Menu stays presentational. */}
-          <button
-            type="button"
-            className="btn btn--ghost menu__retry"
-            data-testid="menu-retry"
-            disabled={lastMode === null || startingMode !== null}
-            onClick={() => {
-              if (lastMode !== null) onStart(lastMode, source);
-            }}
-          >
-            重试
-          </button>
+          <p role="alert" className="menu__error">{startError}</p>
+          <button type="button" className="btn btn--ghost menu__retry" disabled={starting} onClick={onStart}>重试</button>
+        </div>
+      )}
+
+      {showSubmitChoices && (
+        <div className="submit-guide" role="presentation" onClick={() => setShowSubmitChoices(false)}>
+          <section className="submit-guide__card" role="dialog" aria-modal="true" aria-labelledby="submit-guide-title" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="submit-guide__close" aria-label="关闭投稿选项" onClick={() => setShowSubmitChoices(false)}>×</button>
+            <span className="submit-guide__spark" aria-hidden="true">✦</span>
+            <h2 id="submit-guide-title" className="font-display">一起扩充题库吧！</h2>
+            <p>推荐先用投稿工具编辑图片、标记答案并生成 ZIP，再前往 GitHub Issue 上传 ZIP。</p>
+            <div className="submit-guide__steps" aria-label="投稿步骤">
+              <span><b>1</b> 制作题目</span><i aria-hidden="true">→</i><span><b>2</b> 下载 ZIP</span><i aria-hidden="true">→</i><span><b>3</b> 上传 Issue</span>
+            </div>
+            <div className="submit-guide__actions">
+              <a className="submit-choice submit-choice--tool" href="#/submit">
+                <strong>打开投稿工具</strong><small>支持多题、图片编辑与答案选区</small>
+              </a>
+              <a className="submit-choice submit-choice--github" href={ISSUE_URL} target="_blank" rel="noreferrer">
+                <strong>前往 GitHub Issue ↗</strong><small>上传工具生成的 ZIP 文件</small>
+              </a>
+            </div>
+          </section>
         </div>
       )}
     </main>
