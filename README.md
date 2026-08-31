@@ -66,6 +66,7 @@ ZIP 生成后，前往中文「题目投稿」Issue，将 ZIP 拖入对应字段
 - 为每道题建立独立目录，并创建或更新 `submission/issue-<编号>` PR；
 - 生成带答案编号的标注图；
 - 在原 Issue 中发布审核预览：标注图默认展开，投稿原图和坐标默认折叠。
+- 在 Issue 预览和 PR 正文中同时显示审核说明：通过时合并 PR，拒绝时关闭 PR。
 
 修改投稿 Issue 会重新处理 ZIP 并更新同一条预览评论。PR 合并后，Issue 预览会显示收录版本；未合并直接关闭时，自动化会把预览改为未收录、添加“审核未通过”标签并关闭 Issue。仓库需要在 Settings → Actions → General → Workflow permissions 中启用 **Read and write permissions**，并允许 GitHub Actions 创建 Pull Request。
 

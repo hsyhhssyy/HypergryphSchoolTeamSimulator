@@ -206,7 +206,7 @@ async function main(): Promise<void> {
     sections.push(`## ${index + 1}. ${markdown(submitted.title)}\n\n${markdown(submitted.description)}\n\n模式：${submitted.mode === 'spot_diff' ? '找不同' : '区域识别'} · 答案数量：${submitted.differences.length} · ID：\`${id}\`\n\n### 答案标注\n\n${annotations}\n\n<details>\n<summary>展开查看投稿原图</summary>\n\n${originals}\n\n</details>\n\n<details>\n<summary>展开查看答案坐标</summary>\n\n| 编号 | 类型 | 坐标 |\n|---:|---|---|\n${coordinates}\n\n</details>`);
   }
 
-  const preview = `${MARKER}\n# 投稿预览\n\n✅ ZIP 解包和校验通过\n\n投稿者：${markdown(parsed.data.authorName)} · 共 ${parsed.data.questions.length} 道题 · 自动生成 PR：#__PR_NUMBER__\n\n${sections.join('\n\n---\n\n')}\n\n---\n\n当前状态：🟡 等待审核`;
+  const preview = `${MARKER}\n# 投稿预览\n\n✅ ZIP 解包和校验通过\n\n投稿者：${markdown(parsed.data.authorName)} · 共 ${parsed.data.questions.length} 道题 · 自动生成 PR：#__PR_NUMBER__\n\n## 审核操作\n\n- **审核通过**：合并 PR #__PR_NUMBER__。题目会被收录，Issue 将自动关闭并显示发布版本。\n- **审核拒绝**：关闭 PR #__PR_NUMBER__，不要合并。Issue 将标记为“审核未通过”并自动关闭。\n- 请不要只关闭本 Issue；题目是否收录以关联 PR 的合并状态为准。\n\n${sections.join('\n\n---\n\n')}\n\n---\n\n当前状态：🟡 等待审核`;
   await writeFile(path.join(root, '.github/submission-preview.md'), preview);
   process.stdout.write(`已处理 Issue #${issue}：${parsed.data.questions.length} 道题\n`);
 }

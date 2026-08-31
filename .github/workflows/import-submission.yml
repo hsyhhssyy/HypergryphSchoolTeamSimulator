@@ -89,7 +89,8 @@ jobs:
           set -euo pipefail
           pull_number="$(gh pr list --head "${BRANCH_NAME}" --state open --json number --jq '.[0].number // empty')"
           if [[ -z "${pull_number}" ]]; then
-            pull_url="$(gh pr create --head "${BRANCH_NAME}" --title "[题目投稿 #${ISSUE_NUMBER}] ${ISSUE_TITLE}" --body "Closes #${ISSUE_NUMBER}. 由投稿自动化生成；请在原 Issue 中审核标注图和题目内容。")"
+            body="$(printf 'Closes #%s.\n\n## 审核操作\n\n- **审核通过**：点击 Merge pull request。题目将被收录，Issue #%s 会自动关闭并显示发布版本。\n- **审核拒绝**：点击 Close pull request，不要合并。Issue #%s 会标记为“审核未通过”并自动关闭。\n- 标注图、投稿原图和答案坐标请在 Issue #%s 中审核。\n- 请不要只关闭 Issue；题目是否收录以本 PR 的合并状态为准。' "${ISSUE_NUMBER}" "${ISSUE_NUMBER}" "${ISSUE_NUMBER}" "${ISSUE_NUMBER}")"
+            pull_url="$(gh pr create --head "${BRANCH_NAME}" --title "[题目投稿 #${ISSUE_NUMBER}] ${ISSUE_TITLE}" --body "${body}")"
             pull_number="${pull_url##*/}"
           fi
           echo "number=${pull_number}" >> "${GITHUB_OUTPUT}"
