@@ -1,0 +1,23 @@
+{
+  "id": "submission-2-01",
+  "mode": "find_area",
+  "title": "11",
+  "description": "22",
+  "imageA": "questions/items/submission-2-01/a.png",
+  "differences": [
+    {
+      "type": "rect",
+      "x": 423.7,
+      "y": 147,
+      "width": 213.8,
+      "height": 194.7
+    }
+  ],
+  "showCount": true,
+  "source": "workshop",
+  "authorName": "hsyhhssyy",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31T10:59:31Z"
+}
