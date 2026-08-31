@@ -1,0 +1,23 @@
+{
+  "id": "submission-4-01",
+  "mode": "find_area",
+  "title": "图中的文字哪里有问题？",
+  "description": "请寻找有问题的文字。",
+  "imageA": "questions/items/submission-4-01/a.png",
+  "differences": [
+    {
+      "type": "rect",
+      "x": 713.2,
+      "y": 432.5,
+      "width": 122.5,
+      "height": 45.8
+    }
+  ],
+  "showCount": true,
+  "source": "workshop",
+  "authorName": "hsyhhssyy",
+  "status": "approved",
+  "likes": 0,
+  "dislikes": 0,
+  "createdAt": "2026-08-31T16:12:42Z"
+}
