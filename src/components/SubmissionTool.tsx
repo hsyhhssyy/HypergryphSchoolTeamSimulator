@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { CSSProperties, JSX } from 'preact';
+import type { JSX } from 'preact';
 import { strToU8, zip } from 'fflate';
 import type { Difference, QuestionMode } from '@shared/types';
 import { ImageAdjustDialog, type AdjustableImage } from '@/components/ImageAdjustDialog';
 import { differenceMarkerStyle } from '@/components/ImagePanel';
 import {
   computeContainTransform,
-  toDisplayCoords,
   toNativeCoords,
   type ContainTransform,
   type Point,
@@ -20,8 +19,8 @@ import {
 
 const ISSUE_URL = 'https://github.com/hsyhhssyy/HypergryphSchoolTeamSimulator/issues/new?template=question-submission.yml';
 const MAX_SOURCE_IMAGE_BYTES = 40 * 1024 * 1024;
-const DEFAULT_RADIUS = 30;
 const DRAG_THRESHOLD_PX = 10;
+const DEFAULT_REGION_SIZE = 100;
 
 type ImageSlot = 'imageA' | 'imageB';
 
@@ -54,7 +53,15 @@ interface DragState {
   pointerId: number;
   startClient: Point;
   startNative: Point;
-  currentNative: Point | null;
+  moved: boolean;
+}
+
+type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
+
+interface ResizeState {
+  pointerId: number;
+  index: number;
+  anchor: Point;
 }
 
 interface AdjustingTarget {
@@ -99,6 +106,23 @@ export function normalizeRect(a: Point, b: Point): Extract<Difference, { type: '
     y: Math.min(a.y, b.y),
     width: Math.max(1, Math.abs(a.x - b.x)),
     height: Math.max(1, Math.abs(a.y - b.y)),
+  };
+}
+
+export function centeredRect(
+  center: Point,
+  imageWidth: number,
+  imageHeight: number,
+  size = DEFAULT_REGION_SIZE,
+): Extract<Difference, { type: 'rect' }> {
+  const width = Math.min(size, imageWidth);
+  const height = Math.min(size, imageHeight);
+  return {
+    type: 'rect',
+    x: round1(Math.min(imageWidth - width, Math.max(0, center.x - width / 2))),
+    y: round1(Math.min(imageHeight - height, Math.max(0, center.y - height / 2))),
+    width: round1(width),
+    height: round1(height),
   };
 }
 
@@ -197,11 +221,6 @@ function differenceText(value: Difference): string {
     ? `圆形 · (${value.x}, ${value.y}) · 半径 ${value.radius}`
     : `矩形 · (${value.x}, ${value.y}) · ${value.width}×${value.height}`;
 }
-function dragStyle(value: Extract<Difference, { type: 'rect' }>, transform: ContainTransform): CSSProperties {
-  const point = toDisplayCoords(value.x, value.y, transform);
-  return { left: point.x, top: point.y, width: value.width * transform.scale, height: value.height * transform.scale };
-}
-
 export interface SubmissionToolProps { onBack: () => void }
 
 export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
@@ -210,10 +229,10 @@ export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
   const [authorName, setAuthorName] = useState('');
   const [errors, setErrors] = useState<DraftErrors>({});
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [radius, setRadius] = useState(DEFAULT_RADIUS);
   const [editorView, setEditorView] = useState<ImageSlot>('imageA');
   const [geometry, setGeometry] = useState<EditorGeometry | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [resize, setResize] = useState<ResizeState | null>(null);
   const [processing, setProcessing] = useState<AdjustingTarget | null>(null);
   const [adjusting, setAdjusting] = useState<AdjustingTarget | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -246,6 +265,7 @@ export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
     setEditorView('imageA');
     setGeometry(null);
     setDrag(null);
+    setResize(null);
   }, [activeKey]);
 
   const syncGeometry = (): void => {
@@ -357,25 +377,49 @@ export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
   const pointerDown = (event: JSX.TargetedPointerEvent<HTMLDivElement>): void => {
     const point = currentNativePoint(event);
     if (point === null) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ pointerId: event.pointerId, startClient: { x: event.clientX, y: event.clientY }, startNative: point, currentNative: null });
+    setDrag({ pointerId: event.pointerId, startClient: { x: event.clientX, y: event.clientY }, startNative: point, moved: false });
   };
   const pointerMove = (event: JSX.TargetedPointerEvent<HTMLDivElement>): void => {
     if (drag === null || drag.pointerId !== event.pointerId) return;
-    const point = currentNativePoint(event);
-    if (point === null) return;
-    if (Math.hypot(event.clientX - drag.startClient.x, event.clientY - drag.startClient.y) >= DRAG_THRESHOLD_PX) setDrag({ ...drag, currentNative: point });
+    if (!drag.moved && Math.hypot(event.clientX - drag.startClient.x, event.clientY - drag.startClient.y) >= DRAG_THRESHOLD_PX) setDrag({ ...drag, moved: true });
   };
   const pointerUp = (event: JSX.TargetedPointerEvent<HTMLDivElement>): void => {
     if (drag === null || drag.pointerId !== event.pointerId) return;
     const finished = drag;
     setDrag(null);
-    if (finished.currentNative === null) addDifference({ type: 'circle', x: round1(finished.startNative.x), y: round1(finished.startNative.y), radius });
-    else {
-      const rect = normalizeRect(finished.startNative, finished.currentNative);
-      addDifference({ ...rect, x: round1(rect.x), y: round1(rect.y), width: round1(rect.width), height: round1(rect.height) });
-    }
+    if (!finished.moved && geometry !== null) addDifference(centeredRect(finished.startNative, geometry.naturalW, geometry.naturalH));
+  };
+
+  const startResize = (index: number, corner: ResizeCorner) => (event: JSX.TargetedPointerEvent<HTMLButtonElement>): void => {
+    const difference = active.differences[index];
+    if (difference?.type !== 'rect') return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const anchor = {
+      x: corner.includes('w') ? difference.x + difference.width : difference.x,
+      y: corner.includes('n') ? difference.y + difference.height : difference.y,
+    };
+    setSelectedIndex(index);
+    setResize({ pointerId: event.pointerId, index, anchor });
+  };
+  const moveResize = (event: JSX.TargetedPointerEvent<HTMLButtonElement>): void => {
+    if (resize === null || resize.pointerId !== event.pointerId) return;
+    const point = currentNativePoint(event);
+    if (point === null) return;
+    const next = normalizeRect(resize.anchor, point);
+    updateActive({ differences: active.differences.map((item, index) => index === resize.index ? {
+      ...next,
+      x: round1(next.x), y: round1(next.y), width: round1(next.width), height: round1(next.height),
+    } : item) });
+  };
+  const endResize = (event: JSX.TargetedPointerEvent<HTMLButtonElement>): void => {
+    if (resize?.pointerId === event.pointerId) setResize(null);
+  };
+  const deleteDifference = (index: number): void => {
+    updateActive({ differences: active.differences.filter((_, itemIndex) => itemIndex !== index) });
+    setSelectedIndex(null);
+    setResize(null);
   };
 
   const exportZip = async (): Promise<void> => {
@@ -405,7 +449,6 @@ export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
 
   const adjustedDraft = adjusting === null ? null : drafts.find((draft) => draft.key === adjusting.draftKey) ?? null;
   const adjustedImage = adjusting === null || adjustedDraft === null ? null : adjustedDraft[adjusting.slot];
-  const selected = selectedIndex === null ? undefined : active.differences[selectedIndex];
   const previewImage = editorView === 'imageB' && active.imageB !== null ? active.imageB : active.imageA;
   const currentErrors = useMemo(() => validateSubmissionDraft(active), [active]);
 
@@ -459,7 +502,7 @@ export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
 
         {active.imageA !== null && <section className="card workshop-editor">
           <h2 className="menu__heading">③ 创建答案选区</h2>
-          <p className="workshop-hint">轻点添加圆形选区；按住拖动绘制矩形选区。选中标记后可调整或删除。</p>
+          <p className="workshop-hint">轻点图片创建矩形选区；拖动选区四角调整范围，点击 × 删除。直接在图片上滑动可滚动页面。</p>
           {active.mode === 'spot_diff' && active.imageB !== null && <div className="source-toggle"><button type="button" className={`source-toggle__option${editorView === 'imageA' ? ' source-toggle--active' : ''}`} onClick={() => setEditorView('imageA')}>图片 A（编辑）</button><button type="button" className={`source-toggle__option${editorView === 'imageB' ? ' source-toggle--active' : ''}`} onClick={() => setEditorView('imageB')}>图片 B（检查）</button></div>}
           {errors.differences && <small className="field__error">{errors.differences}</small>}
           <div className="workshop-editor__stage">
@@ -467,12 +510,15 @@ export function SubmissionTool({ onBack }: SubmissionToolProps): JSX.Element {
             {editorView === 'imageA' && <div ref={overlayRef} className="game-surface workshop-editor__overlay" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={() => setDrag(null)} />}
             {geometry !== null && active.differences.map((difference, index) => {
               const style = differenceMarkerStyle(difference, geometry.transform);
-              return style === null ? null : <button type="button" key={index} className={`workshop-marker${selectedIndex === index ? ' workshop-marker--selected' : ''}`} style={style} aria-label={`选择答案区域 ${index + 1}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setSelectedIndex(index)} />;
+              if (style === null) return null;
+              const selected = selectedIndex === index;
+              return <div key={index} className={`workshop-marker${selected ? ' workshop-marker--selected' : ''}`} style={style} role="button" tabIndex={0} aria-label={`选择答案区域 ${index + 1}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setSelectedIndex(index)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedIndex(index); }}>
+                {selected && <button type="button" className="workshop-marker__delete" aria-label={`删除答案区域 ${index + 1}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); deleteDifference(index); }}>×</button>}
+                {selected && difference.type === 'rect' && (['nw', 'ne', 'sw', 'se'] as const).map((corner) => <button type="button" key={corner} className={`workshop-marker__handle workshop-marker__handle--${corner}`} aria-label={`调整答案区域${corner}角`} onPointerDown={startResize(index, corner)} onPointerMove={moveResize} onPointerUp={endResize} onPointerCancel={endResize} />)}
+              </div>;
             })}
-            {drag?.currentNative !== null && drag !== null && geometry !== null && <div className="workshop-marker workshop-marker--drag" style={dragStyle(normalizeRect(drag.startNative, drag.currentNative), geometry.transform)} />}
           </div>
-          <label className="field"><span className="field__label">圆形半径：{selected?.type === 'circle' ? selected.radius : radius}px</span><input className="workshop-slider" type="range" min="5" max="200" value={selected?.type === 'circle' ? selected.radius : radius} onInput={(event) => { const value = Number(event.currentTarget.value); setRadius(value); if (selectedIndex !== null && selected?.type === 'circle') updateActive({ differences: active.differences.map((item, index) => index === selectedIndex && item.type === 'circle' ? { ...item, radius: value } : item) }); }} /></label>
-          <ul className="workshop-diff-list">{active.differences.map((difference, index) => <li className={`workshop-diff-item${selectedIndex === index ? ' workshop-diff-item--selected' : ''}`} key={index}><button type="button" className="workshop-diff-item__select" onClick={() => setSelectedIndex(index)}><span className="workshop-diff-item__no">#{index + 1}</span><span>{differenceText(difference)}</span></button><button type="button" className="btn btn--danger workshop-diff-item__delete" onClick={() => { updateActive({ differences: active.differences.filter((_, itemIndex) => itemIndex !== index) }); setSelectedIndex(null); }}>删除</button></li>)}</ul>
+          <ul className="workshop-diff-list">{active.differences.map((difference, index) => <li className={`workshop-diff-item${selectedIndex === index ? ' workshop-diff-item--selected' : ''}`} key={index}><button type="button" className="workshop-diff-item__select" onClick={() => setSelectedIndex(index)}><span className="workshop-diff-item__no">#{index + 1}</span><span>{differenceText(difference)}</span></button><button type="button" className="btn btn--danger workshop-diff-item__delete" onClick={() => deleteDifference(index)}>删除</button></li>)}</ul>
         </section>}
 
         <section className="card submission-export">

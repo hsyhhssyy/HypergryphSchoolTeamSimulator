@@ -47,6 +47,9 @@ export interface ImagePanelProps {
 /** Display-pixel movement that turns a press into a gesture instead of a tap. */
 export const TAP_MOVE_THRESHOLD_PX = 10;
 
+/** Fingers need less slop: a small drag on a touch screen usually means pan. */
+export const TOUCH_TAP_MOVE_THRESHOLD_PX = 5;
+
 /** Pure gesture classifier: once the pointer reaches the threshold, cancel. */
 export function exceedsTapMoveThreshold(
   startX: number,
@@ -68,8 +71,11 @@ interface Geometry {
 
 interface PointerGesture {
   pointerId: number;
+  pointerType: string;
   startX: number;
   startY: number;
+  startScrollX: number;
+  startScrollY: number;
   moved: boolean;
 }
 
@@ -206,8 +212,11 @@ function ImagePanelInner({
     }
     pointerGestureRef.current = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       startX: event.clientX,
       startY: event.clientY,
+      startScrollX: window.scrollX,
+      startScrollY: window.scrollY,
       moved: false,
     };
   };
@@ -221,6 +230,9 @@ function ImagePanelInner({
         gesture.startY,
         event.clientX,
         event.clientY,
+        gesture.pointerType === 'touch'
+          ? TOUCH_TAP_MOVE_THRESHOLD_PX
+          : TAP_MOVE_THRESHOLD_PX,
       )
     ) {
       gesture.moved = true;
@@ -235,11 +247,16 @@ function ImagePanelInner({
     // final displacement only on pointerup, without an intermediate move.
     const moved =
       gesture.moved ||
+      window.scrollX !== gesture.startScrollX ||
+      window.scrollY !== gesture.startScrollY ||
       exceedsTapMoveThreshold(
         gesture.startX,
         gesture.startY,
         event.clientX,
         event.clientY,
+        gesture.pointerType === 'touch'
+          ? TOUCH_TAP_MOVE_THRESHOLD_PX
+          : TAP_MOVE_THRESHOLD_PX,
       );
     if (disabled || moved) return;
 

@@ -2,6 +2,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import {
   buildSubmissionZip,
+  centeredRect,
   createSubmissionDraft,
   normalizeRect,
   validateSubmissionDraft,
@@ -46,6 +47,15 @@ describe('multi-question submission validation', () => {
   it('normalizes reverse rectangle drags', () => {
     expect(normalizeRect({ x: 200, y: 160 }, { x: 80, y: 40 })).toEqual({
       type: 'rect', x: 80, y: 40, width: 120, height: 120,
+    });
+  });
+
+  it('creates a fixed-size rectangle centered on a tap and keeps it in bounds', () => {
+    expect(centeredRect({ x: 400, y: 300 }, 800, 600)).toEqual({
+      type: 'rect', x: 350, y: 250, width: 100, height: 100,
+    });
+    expect(centeredRect({ x: 10, y: 590 }, 800, 600)).toEqual({
+      type: 'rect', x: 0, y: 500, width: 100, height: 100,
     });
   });
 });

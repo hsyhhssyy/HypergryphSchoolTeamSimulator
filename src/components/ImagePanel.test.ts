@@ -5,6 +5,7 @@ import {
   differenceMarkerStyle,
   exceedsTapMoveThreshold,
   TAP_MOVE_THRESHOLD_PX,
+  TOUCH_TAP_MOVE_THRESHOLD_PX,
 } from '@/components/ImagePanel';
 
 /**
@@ -71,5 +72,11 @@ describe('touch gesture classification', () => {
 
   it('classifies a vertical swipe as movement even if it later returns', () => {
     expect(exceedsTapMoveThreshold(100, 300, 100, 250)).toBe(true);
+  });
+
+  it('uses tighter movement tolerance for touch panning than mouse clicks', () => {
+    expect(exceedsTapMoveThreshold(100, 100, 104, 104, TOUCH_TAP_MOVE_THRESHOLD_PX)).toBe(true);
+    expect(exceedsTapMoveThreshold(100, 100, 104, 104, TAP_MOVE_THRESHOLD_PX)).toBe(false);
+    expect(TOUCH_TAP_MOVE_THRESHOLD_PX).toBe(5);
   });
 });

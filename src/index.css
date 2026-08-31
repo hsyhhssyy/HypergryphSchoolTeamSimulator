@@ -2084,6 +2084,7 @@ button {
   cursor: crosshair;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: pan-y pinch-zoom;
   z-index: 1;
 }
 
@@ -2119,6 +2120,32 @@ button {
   outline: 3px solid var(--color-info);
   outline-offset: 2px;
 }
+
+.workshop-marker__handle {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  z-index: 4;
+}
+
+.workshop-marker__handle::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+
+.workshop-marker__handle--nw { top: -22px; left: -22px; cursor: nwse-resize; }
+.workshop-marker__handle--ne { top: -22px; right: -22px; cursor: nesw-resize; }
+.workshop-marker__handle--sw { bottom: -22px; left: -22px; cursor: nesw-resize; }
+.workshop-marker__handle--se { right: -22px; bottom: -22px; cursor: nwse-resize; }
 
 .image-adjust {
   position: fixed;
@@ -2327,20 +2354,6 @@ button {
   border-style: solid;
   border-color: var(--color-success);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 30%, transparent);
-}
-
-.workshop-marker--drag {
-  border-style: dashed;
-  border-color: var(--color-accent-alt);
-  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
-  animation: none;
-}
-
-.workshop-slider {
-  width: 100%;
-  accent-color: var(--color-primary);
-  min-height: 44px;
-  cursor: pointer;
 }
 
 /* Authored-difference list — selectable rows + delete */
