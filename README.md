@@ -60,13 +60,14 @@ ZIP 生成后，前往中文「题目投稿」Issue，将 ZIP 拖入对应字段
 
 [`import-submission.yml`](.github/workflows/import-submission.yml) 会在 Issue 创建后自动：
 
+- 立即回复一条“投稿处理中”占位评论，后续始终更新同一条评论；
 - 下载并安全解包 ZIP，限制文件数量、单文件和总体积；
 - 校验题目清单、真实图片格式、图片尺寸和答案坐标；
 - 为每道题建立独立目录，并创建或更新 `submission/issue-<编号>` PR；
 - 生成带答案编号的标注图；
 - 在原 Issue 中发布审核预览：标注图默认展开，投稿原图和坐标默认折叠。
 
-修改投稿 Issue 会重新处理 ZIP 并更新同一条预览评论。PR 合并后，Issue 预览会显示收录版本；未合并直接关闭则显示未收录。仓库需要在 Settings → Actions → General → Workflow permissions 中启用 **Read and write permissions**，并允许 GitHub Actions 创建 Pull Request。
+修改投稿 Issue 会重新处理 ZIP 并更新同一条预览评论。PR 合并后，Issue 预览会显示收录版本；未合并直接关闭时，自动化会把预览改为未收录、添加“审核未通过”标签并关闭 Issue。仓库需要在 Settings → Actions → General → Workflow permissions 中启用 **Read and write permissions**，并允许 GitHub Actions 创建 Pull Request。
 
 ## GitHub Pages
 
