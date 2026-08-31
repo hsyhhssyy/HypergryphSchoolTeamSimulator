@@ -44,4 +44,9 @@ ZIP 生成后，前往中文「题目投稿」Issue，将 ZIP 拖入对应字段
 
 ## GitHub Pages
 
-推送到 `main` 后，[`deploy-pages.yml`](.github/workflows/deploy-pages.yml) 会自动测试、构建并发布 `dist/`。首次启用时，请在仓库 Settings → Pages → Build and deployment 中将 Source 设为 **GitHub Actions**。
+推送符合 `v数字.数字.数字.数字` 格式的标签（例如 `v1.0.0.0`）后，[`deploy-pages.yml`](.github/workflows/deploy-pages.yml) 会自动测试、构建并发布 `dist/`。普通分支推送和 Pull Request 不会触发该工作流。首次启用时，请在仓库 Settings → Pages → Build and deployment 中将 Source 设为 **GitHub Actions**。
+
+```bash
+git tag v1.0.0.0
+git push origin v1.0.0.0
+```
