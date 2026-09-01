@@ -292,6 +292,54 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
         description={currentQuestion.description}
       />
 
+      {/* A reserved feedback dock keeps both outcomes in one predictable
+          place above the artwork. It never overlays or shifts either image. */}
+      <div
+        className="game-feedback-slot"
+        aria-live="assertive"
+        aria-atomic="true"
+      >
+        {correctFlash > 0 ? (
+          <div
+            key={`correct-${correctFlash}`}
+            className="game-feedback game-feedback--correct"
+            role="status"
+          >
+            <span className="game-feedback__glyph" aria-hidden="true">✓</span>
+            <span className="game-feedback__copy">
+              <strong className="game-feedback__title">找到了！</strong>
+              <span className="game-feedback__detail">
+                +1 分 · +{CORRECT_TIME_BONUS_SECONDS} 秒
+              </span>
+            </span>
+            <span className="game-feedback__accent" aria-hidden="true">✦</span>
+          </div>
+        ) : wrongFlash > 0 ? (
+          <div
+            key={`wrong-${wrongFlash}`}
+            className="game-feedback game-feedback--wrong"
+            role="alert"
+          >
+            <span className="game-feedback__glyph" aria-hidden="true">✕</span>
+            <span className="game-feedback__copy">
+              <strong className="game-feedback__title">没找到！</strong>
+              <span className="game-feedback__detail">
+                −{WRONG_TIME_PENALTY_SECONDS} 秒
+              </span>
+            </span>
+            <span className="game-feedback__accent" aria-hidden="true">◆</span>
+          </div>
+        ) : (
+          <div className="game-feedback game-feedback--idle" aria-hidden="true">
+            <span className="game-feedback__glyph">◎</span>
+            <span className="game-feedback__copy">
+              <strong className="game-feedback__title">仔细观察</strong>
+              <span className="game-feedback__detail">点击图片中的不同之处</span>
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* find_area (imageB undefined, todo 14) → single centered full-width
           panel via the --single modifier; spot_diff keeps the 2-col grid. */}
       {!imagesReady ? (
@@ -348,52 +396,6 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
         </div>
       )}
 
-      {correctFlash > 0 && (
-        <div
-          key={correctFlash}
-          className="correct-mark"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <div className="correct-mark__burst" aria-hidden="true">
-            <i /><i /><i /><i /><i /><i /><i /><i />
-          </div>
-          <div className="correct-mark__card">
-            <span className="correct-mark__glyph" aria-hidden="true">✓</span>
-            <span className="correct-mark__copy">
-              <strong className="correct-mark__title">找到了！</strong>
-              <span className="correct-mark__bonus">
-                +1 分 · +{CORRECT_TIME_BONUS_SECONDS} 秒
-              </span>
-            </span>
-          </div>
-        </div>
-      )}
-
-      {wrongFlash > 0 && (
-        <div
-          key={wrongFlash}
-          className="wrong-mark"
-          role="alert"
-          aria-atomic="true"
-        >
-          <div className="wrong-mark__burst" aria-hidden="true">
-            <i /><i /><i /><i /><i /><i /><i /><i />
-          </div>
-          <div className="wrong-mark__card">
-            <span className="wrong-mark__glyph" aria-hidden="true">
-              ✕
-            </span>
-            <span className="wrong-mark__copy">
-              <strong className="wrong-mark__title">没找到！</strong>
-              <span className="wrong-mark__penalty">
-                −{WRONG_TIME_PENALTY_SECONDS} 秒
-              </span>
-            </span>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

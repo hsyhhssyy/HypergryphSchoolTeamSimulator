@@ -1,0 +1,3 @@
+interface:
+  display_name: "项目提交"
+  short_description: "审计改动并安全创建 Git commit"
