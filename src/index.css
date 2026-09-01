@@ -1344,7 +1344,9 @@ button {
    Ink text keeps AA contrast on both bright palettes. Workshop mode cards do
    not carry --entry and retain the selection styling above. */
 .menu .mode-card--entry {
-  min-height: 164px;
+  min-height: 120px;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
   border-color: var(--menu-source-main);
   color: var(--color-ink);
   background: linear-gradient(

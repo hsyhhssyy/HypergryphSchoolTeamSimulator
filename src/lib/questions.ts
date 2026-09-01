@@ -20,12 +20,8 @@ export async function loadRandomGameQuestions(count: number): Promise<RandomGame
   const response = await fetch(QUESTION_BANK_URL);
   if (!response.ok) throw new Error(`题库加载失败（HTTP ${response.status}）`);
   const bank = (await response.json()) as Question[];
-  const modes = (['spot_diff', 'find_area'] as const).filter((mode) =>
-    bank.some((question) => question.mode === mode),
-  );
-  if (modes.length === 0) return { mode: 'spot_diff', questions: [] };
-  const mode = modes[Math.floor(Math.random() * modes.length)]!;
-  return { mode, questions: shuffle(bank.filter((question) => question.mode === mode)).slice(0, count) };
+  const questions = shuffle(bank).slice(0, count);
+  return { mode: questions[0]?.mode ?? 'spot_diff', questions };
 }
 
 export function resolveQuestionAsset(value: string): string {
