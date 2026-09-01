@@ -53,6 +53,8 @@ export const ROUND_END_DELAY_MS = 1500;
  * so the penalty remains readable without extending the 800ms input cooldown.
  */
 export const WRONG_FEEDBACK_MS = 1400;
+/** Correct-hit celebration lifetime: long enough to read without slowing play. */
+export const CORRECT_FEEDBACK_MS = 1100;
 
 export interface GameScreenProps {
   state: GameState;
@@ -213,9 +215,12 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
   // the card and replays its flash/pop/wiggle animations.
   const [wrongFlash, setWrongFlash] = useState(0);
   const wrongFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [correctFlash, setCorrectFlash] = useState(0);
+  const correctFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
       if (wrongFlashRef.current !== null) clearTimeout(wrongFlashRef.current);
+      if (correctFlashRef.current !== null) clearTimeout(correctFlashRef.current);
     },
     [],
   );
@@ -224,6 +229,12 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
     (index: number) => {
       timer.addTime(CORRECT_TIME_BONUS_SECONDS);
       dispatch({ type: 'FOUND_DIFFERENCE', index });
+      setCorrectFlash((n) => n + 1);
+      if (correctFlashRef.current !== null) clearTimeout(correctFlashRef.current);
+      correctFlashRef.current = setTimeout(
+        () => setCorrectFlash(0),
+        CORRECT_FEEDBACK_MS,
+      );
     },
     [dispatch, timer],
   );
@@ -330,6 +341,29 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
             +{Math.max(0, state.score - roundStartScoreRef.current)} 分
           </p>
           <p className="round-end__total">总分 {state.score}</p>
+        </div>
+      )}
+
+      {correctFlash > 0 && (
+        <div
+          key={correctFlash}
+          className="correct-mark"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div className="correct-mark__burst" aria-hidden="true">
+            <i /><i /><i /><i /><i /><i /><i /><i />
+          </div>
+          <div className="correct-mark__card">
+            <span className="correct-mark__glyph" aria-hidden="true">✓</span>
+            <span className="correct-mark__copy">
+              <strong className="correct-mark__title">找到了！</strong>
+              <span className="correct-mark__bonus">
+                +1 分 · +{CORRECT_TIME_BONUS_SECONDS} 秒
+              </span>
+            </span>
+          </div>
         </div>
       )}
 
