@@ -72,7 +72,7 @@ ZIP 生成后，前往中文「题目投稿」Issue，将 ZIP 拖入对应字段
 
 ## GitHub Pages
 
-Pull Request 合并后，[`release-merged-pr.yml`](.github/workflows/release-merged-pr.yml) 会读取最大的 `vX.Y.Z.N` 标签，将最后一段递增并创建新标签。例如上一个版本是 `v1.2.3.7`，新版本就是 `v1.2.3.8`；仓库没有版本标签时从 `v0.0.0.1` 开始。随后会调用 [`deploy-pages.yml`](.github/workflows/deploy-pages.yml)，自动测试、聚合题库、构建并发布 `dist/`。
+Pull Request 合并后，[`release-merged-pr.yml`](.github/workflows/release-merged-pr.yml) 会读取最大的 `vX.Y.Z.N` 标签，将最后一段递增并创建新标签。例如上一个版本是 `v1.2.3.7`，新版本就是 `v1.2.3.8`；仓库没有版本标签时从 `v0.0.0.1` 开始。随后会从默认分支调度 [`deploy-pages.yml`](.github/workflows/deploy-pages.yml)，检出新标签，自动测试、聚合题库、构建并发布 `dist/`。独立调度可以避免合并事件的 PR 引用被 GitHub Pages 环境保护规则拒绝。
 
 仍然可以手动推送符合 `v数字.数字.数字.数字` 格式的标签来触发发布。首次启用时，请在仓库 Settings → Pages → Build and deployment 中将 Source 设为 **GitHub Actions**，并确保 Settings → Actions → General 中允许 Actions 创建和推送标签。
 

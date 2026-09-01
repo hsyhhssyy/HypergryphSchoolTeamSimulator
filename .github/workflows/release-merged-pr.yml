@@ -5,6 +5,7 @@ on:
     types: [closed]
 
 permissions:
+  actions: write
   contents: write
   issues: write
   pages: write
@@ -68,10 +69,14 @@ jobs:
 
   deploy:
     needs: tag
-    uses: ./.github/workflows/deploy-pages.yml
-    with:
-      release_ref: ${{ needs.tag.outputs.release_tag }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Pages deployment from default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ needs.tag.outputs.release_tag }}
+        run: gh workflow run deploy-pages.yml --repo "${GITHUB_REPOSITORY}" --ref "${DEFAULT_BRANCH}" -f "release_ref=${RELEASE_TAG}"
 
   rejected:
     if: github.event.pull_request.merged == false
