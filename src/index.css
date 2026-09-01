@@ -394,6 +394,11 @@ button {
   animation: var(--anim-pop);
 }
 
+.image-panel-marker--missed {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
 /* --------------------------------------------------------------------------
    8.2 GameScreen (todo 13) — dual panels, round interstitial, wrong ✕
    -------------------------------------------------------------------------- */
@@ -1605,9 +1610,7 @@ button {
 }
 
 /* --------------------------------------------------------------------------
-   13. Result screen (todo 15) — final score, accuracy, found/missed list.
-   The missed list ALWAYS reveals the count even when show_count=false
-   (show_count governs the HUD only — plan decision #6).
+   13. Result screen (todo 15) — final score, accuracy, question summary.
    -------------------------------------------------------------------------- */
 .result-screen {
   justify-content: flex-start;
@@ -1661,7 +1664,50 @@ button {
   color: var(--color-ink-muted);
 }
 
-/* Found/missed list — per-difference rows, missed red-highlighted */
+.result-answer {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: left;
+}
+
+.result-answer__title {
+  font-size: var(--font-size-h2);
+  color: var(--color-ink);
+}
+
+.result-answer__legend {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--font-size-small);
+  color: var(--color-ink-muted);
+}
+
+.result-answer__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.result-answer__dot {
+  width: 12px;
+  height: 12px;
+  border: 3px solid;
+  border-radius: 50%;
+}
+
+.result-answer__dot--found {
+  border-color: var(--color-success);
+}
+
+.result-answer__dot--missed {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+/* Attempted-question summary — one row per question with its found count. */
 .result-list {
   width: 100%;
   max-width: 420px;
@@ -1680,9 +1726,23 @@ button {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
-  padding: 0;
+  padding: 2px var(--space-2) var(--space-2) 2px;
   margin: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-secondary) transparent;
+}
+
+.result-list__items::-webkit-scrollbar {
+  width: 6px;
+}
+
+.result-list__items::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: var(--color-secondary);
 }
 
 .result-list__item {

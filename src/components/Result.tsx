@@ -1,20 +1,16 @@
 /**
  * Result — todo 15 (+ todo 21 rating). Rendered at phase==='result'. Pure
  * display except the workshop rating vote (the only local state): final score,
- * accuracy %, per-difference found/missed list for the LAST question
- * (state.currentQuestion is still the last question — the reducer never nulls
- * it), a 再来一局 button that dispatches RESET, and — ONLY for approved
- * workshop questions with a known anonymous user id — 👍/👎 rating buttons.
- *
- * The missed list ALWAYS reveals the full count regardless of showCount —
- * show_count governs the HUD only (plan decision #6: gameplay concealment,
- * not post-game).
+ * accuracy %, a summary of every attempted question, and a 再来一局 button
+ * that dispatches RESET.
  */
 import type { JSX } from 'preact';
 import type { Dispatch } from 'preact/hooks';
 import type { GameState } from '@shared/types';
 import type { GameAction } from '@/hooks/useGameState';
 import { Confetti } from '@/components/Confetti';
+import { ImagePanel } from '@/components/ImagePanel';
+import { resolveQuestionAsset } from '@/lib/questions';
 
 export interface ResultProps {
   state: GameState;
@@ -31,8 +27,13 @@ export function computeAccuracy(totalFound: number, wrongCount: number): number 
 }
 
 export function Result({ state, dispatch }: ResultProps): JSX.Element {
-  const { currentQuestion } = state;
   const accuracy = computeAccuracy(state.totalFound, state.wrongCount);
+  const answeredQuestions = state.questions.slice(0, state.questionIndex + 1);
+  const failedQuestion =
+    state.currentQuestion !== null &&
+    state.foundIndices.length < state.currentQuestion.differences.length
+      ? state.currentQuestion
+      : null;
 
   return (
     <main className="screen result-screen">
@@ -52,29 +53,46 @@ export function Result({ state, dispatch }: ResultProps): JSX.Element {
         </p>
       </div>
 
-      {currentQuestion !== null && (
-        <section className="result-list" aria-label="差异清单">
-          <h2 className="result-list__title">
-            {currentQuestion.title} · 差异清单
-          </h2>
+      {failedQuestion !== null && (
+        <section className="result-answer" aria-label="答案区域">
+          <h2 className="result-answer__title">答案区域</h2>
+          <div className="result-answer__legend" aria-label="答案标记说明">
+            <span><i className="result-answer__dot result-answer__dot--found" />已找到</span>
+            <span><i className="result-answer__dot result-answer__dot--missed" />未找到</span>
+          </div>
+          <ImagePanel
+            src={resolveQuestionAsset(failedQuestion.imageB ?? failedQuestion.imageA)}
+            differences={failedQuestion.differences}
+            foundIndices={state.foundIndices}
+            revealAll
+            onHit={() => undefined}
+            onMiss={() => undefined}
+            disabled
+          />
+        </section>
+      )}
+
+      {answeredQuestions.length > 0 && (
+        <section className="result-list" aria-label="已回答题目">
+          <h2 className="result-list__title">已回答题目</h2>
           <ul className="result-list__items">
-            {currentQuestion.differences.map((difference, index) => {
-              const found = state.foundIndices.includes(index);
+            {answeredQuestions.map((question, index) => {
+              const isCurrentQuestion = index === state.questionIndex;
+              const foundCount = isCurrentQuestion
+                ? state.foundIndices.length
+                : question.differences.length;
+
               return (
                 <li
-                  key={index}
-                  className={`result-list__item${
-                    found ? '' : ' result-list__item--missed'
-                  }`}
-                  data-testid={found ? 'result-item-found' : 'result-item-missed'}
+                  key={question.id}
+                  className="result-list__item"
+                  data-testid="result-question-item"
                 >
                   <span className="result-list__idx" aria-hidden="true">
                     {index + 1}
                   </span>
-                  <span className="result-list__desc">
-                    {difference.type === 'circle' ? '圆形区域' : '矩形区域'}
-                  </span>
-                  <span className="result-list__status">{found ? '已找到' : '未找到'}</span>
+                  <span className="result-list__desc">{question.title}</span>
+                  <span className="result-list__status">{foundCount} 处</span>
                 </li>
               );
             })}

@@ -36,6 +36,8 @@ export interface ImagePanelProps {
   differences: readonly Difference[];
   /** Indices into `differences` already found — markers shown, taps skipped. */
   foundIndices: readonly number[];
+  /** Result-screen mode: reveal missed differences with a distinct marker. */
+  revealAll?: boolean;
   /** Fired with the index of the first UNFOUND difference hit. */
   onHit: (index: number) => void;
   /** Fired when a tap lands on no unfound difference (incl. letterbox). */
@@ -141,6 +143,7 @@ function ImagePanelInner({
   src,
   differences,
   foundIndices,
+  revealAll = false,
   onHit,
   onMiss,
   disabled,
@@ -345,11 +348,17 @@ function ImagePanelInner({
       {imageStatus === 'loaded' &&
         geometry !== null &&
         differences.map((difference, index) => {
-          if (!foundIndices.includes(index)) return null;
+          const found = foundIndices.includes(index);
+          if (!found && !revealAll) return null;
           const style = differenceMarkerStyle(difference, geometry.transform);
           if (style === null) return null;
           return (
-            <div key={index} className="image-panel-marker" style={style} aria-hidden="true" />
+            <div
+              key={index}
+              className={`image-panel-marker${found ? '' : ' image-panel-marker--missed'}`}
+              style={style}
+              aria-hidden="true"
+            />
           );
         })}
     </div>
