@@ -12,8 +12,7 @@ import { SubmissionTool } from '@/components/SubmissionTool';
 import { loadRandomGameQuestions } from '@/lib/questions';
 import { friendlyErrorMessage } from '@/lib/friendlyError';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-
-const QUESTION_COUNT = 5;
+import { timerSpeedForCompletedQuestions } from '@/lib/difficulty';
 
 /**
  * Top-level screen switching INDEPENDENT of GamePhase (todo 20/22). 'game'
@@ -45,6 +44,7 @@ export function App() {
   const timer = useTimer({
     initialSeconds: GAME_TIME_LIMIT,
     maxSeconds: GAME_TIME_LIMIT,
+    speed: timerSpeedForCompletedQuestions(state.completedQuestions),
     onTimeUp: () => dispatch({ type: 'TIME_UP' }),
   });
 
@@ -59,7 +59,8 @@ export function App() {
     startInFlightRef.current = true;
     setStartError(null);
     setStarting(true);
-    loadRandomGameQuestions(QUESTION_COUNT)
+    // Load the full bank once; the run ends on time-up or after its last question.
+    loadRandomGameQuestions()
       .then(({ mode, questions }) => {
         if (questions.length === 0) {
           setStartError('暂无可用题目，请稍后再试');

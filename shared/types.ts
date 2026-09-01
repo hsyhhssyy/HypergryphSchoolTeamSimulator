@@ -99,6 +99,8 @@ export const gameStateSchema = z.object({
    * can compute accuracy = totalFound / (totalFound + wrongCount).
    */
   totalFound: z.number().int().nonnegative(),
+  /** Number of fully completed questions in the current endless run. */
+  completedQuestions: z.number().int().nonnegative(),
   score: z.number().int(),
   wrongCount: z.number().int().nonnegative(),
   timeLeft: z.number().int(),

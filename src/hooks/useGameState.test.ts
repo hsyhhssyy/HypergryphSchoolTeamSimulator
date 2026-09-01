@@ -62,6 +62,7 @@ describe('START_GAME', () => {
     expect(state.foundIndices).toEqual([]);
     expect(state.totalFound).toBe(0);
     expect(state.wrongCount).toBe(0);
+    expect(state.completedQuestions).toBe(0);
   });
 
   it('ignores START_GAME with no questions (stays menu)', () => {
@@ -99,6 +100,7 @@ describe('FOUND_DIFFERENCE', () => {
     expect(state.timeLeft).toBe(7);
     expect(state.foundIndices).toEqual([0, 1]);
     expect(state.totalFound).toBe(2);
+    expect(state.completedQuestions).toBe(1);
   });
 
   it('awards no bonus when timeLeft is 0', () => {
@@ -200,8 +202,9 @@ describe('NEXT_ROUND', () => {
     // Given: last question finished. When: NEXT_ROUND.
     const atRoundEnd = find(find(startGame([qOne()]), 0), 1, 7);
     const state = gameReducer(atRoundEnd, { type: 'NEXT_ROUND' });
-    // Then: result, final score intact.
+    // Then: the finite bank is exhausted and the run ends.
     expect(state.phase).toBe('result');
+    expect(state.completedQuestions).toBe(1);
     expect(state.score).toBe(FOUND_SCORE + FOUND_SCORE + 7 * TIME_BONUS_PER_SECOND);
   });
 
@@ -234,7 +237,7 @@ describe('RESET', () => {
 });
 
 describe('full lifecycle', () => {
-  it('walks menu → playing → round_end → playing → round_end → result → menu', () => {
+  it('ends after the last bank question, then returns to menu on reset', () => {
     // Given: two questions. When: the complete action sequence.
     const questions = [qOne(), qTwo()];
     let state = createInitialState();
@@ -272,6 +275,7 @@ describe('full lifecycle', () => {
     dispatch({ type: 'NEXT_ROUND' });
     expect(state.phase).toBe('result');
     expect(state.totalFound).toBe(3);
+    expect(state.completedQuestions).toBe(2);
 
     dispatch({ type: 'RESET' });
     expect(state.phase).toBe('menu');

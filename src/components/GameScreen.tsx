@@ -38,6 +38,7 @@ import { Confetti } from '@/components/Confetti';
 import { HUD } from '@/components/HUD';
 import { ImagePanel } from '@/components/ImagePanel';
 import { QuestionDescription } from '@/components/QuestionDescription';
+import { timerSpeedForCompletedQuestions } from '@/lib/difficulty';
 
 /** One shared clock for the entire game; bonuses can never exceed this cap. */
 export const GAME_TIME_LIMIT = 120;
@@ -341,6 +342,9 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
             +{Math.max(0, state.score - roundStartScoreRef.current)} 分
           </p>
           <p className="round-end__total">总分 {state.score}</p>
+          <p className="round-end__total">
+            已完成 {state.completedQuestions} 题 · 时间速度 {Math.round(timerSpeedForCompletedQuestions(state.completedQuestions) * 100)}%
+          </p>
         </div>
       )}
 

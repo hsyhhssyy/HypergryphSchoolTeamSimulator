@@ -110,6 +110,18 @@ describe('useTimer', () => {
     expect(ticks).toEqual([2, 1]);
   });
 
+  it('supports an accelerated countdown without creating extra intervals', () => {
+    const { result } = renderHook(() => useTimer({ initialSeconds: 6, speed: 1.5 }));
+    act(() => {
+      result.current.start();
+    });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(result.current.timeLeft).toBe(3);
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
   it('walks 3→2→1→0 and fires onTimeUp exactly once', () => {
     // Given: a 3s timer. When: 3s elapse.
     const onTimeUp = vi.fn();

@@ -16,7 +16,7 @@ export interface RandomGameQuestions {
   questions: Question[];
 }
 
-export async function loadRandomGameQuestions(count: number): Promise<RandomGameQuestions> {
+export async function loadRandomGameQuestions(count = Number.POSITIVE_INFINITY): Promise<RandomGameQuestions> {
   const response = await fetch(QUESTION_BANK_URL);
   if (!response.ok) throw new Error(`题库加载失败（HTTP ${response.status}）`);
   const bank = (await response.json()) as Question[];

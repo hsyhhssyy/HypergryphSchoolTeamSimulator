@@ -317,6 +317,7 @@ describe('usePreloadNextQuestion — todo 23: ONLY the next question, exactly on
       currentQuestion: questions[questionIndex] ?? null,
       foundIndices: [],
       totalFound: 0,
+      completedQuestions: 0,
       score: 0,
       wrongCount: 0,
       timeLeft: 0,
@@ -368,7 +369,7 @@ describe('usePreloadNextQuestion — todo 23: ONLY the next question, exactly on
     expect(created).toHaveLength(3);
     expect(created[2]?.src).toBe('/img-3-a.png');
 
-    // Last question → nothing after it, no preload.
+    // Last question → the finite bank ends, so there is nothing to preload.
     state = makeState(questions, 2);
     act(() => {
       render(h(Probe, null), container as unknown as Element);

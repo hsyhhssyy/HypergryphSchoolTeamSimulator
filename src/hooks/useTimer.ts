@@ -12,6 +12,8 @@ export interface UseTimerOptions {
   initialSeconds: number;
   /** Optional hard ceiling for added time. */
   maxSeconds?: number;
+  /** Countdown speed multiplier. 1.5 means one game-second per 2/3 real second. */
+  speed?: number;
   /** Called after every 1s tick with the remaining seconds (may be 0). */
   onTick?: (remaining: number) => void;
   /** Called exactly once when the countdown reaches 0. */
@@ -46,7 +48,7 @@ const TICK_MS = 1000;
  * repeated start() calls, pause(), reset(), and unmount all funnel through a
  * single effect cleanup — duplicates and leaks are impossible by construction.
  */
-export function useTimer({ initialSeconds, maxSeconds, onTick, onTimeUp }: UseTimerOptions): TimerControls {
+export function useTimer({ initialSeconds, maxSeconds, speed = 1, onTick, onTimeUp }: UseTimerOptions): TimerControls {
   const [timeLeft, setTimeLeft] = useState(initialSeconds);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -87,10 +89,10 @@ export function useTimer({ initialSeconds, maxSeconds, onTick, onTimeUp }: UseTi
         setIsRunning(false);
         onTimeUpRef.current?.();
       }
-    }, TICK_MS);
+    }, TICK_MS / Math.max(0.01, speed));
 
     return () => clearInterval(id);
-  }, [isRunning]);
+  }, [isRunning, speed]);
 
   const start = useCallback(() => {
     if (timeLeftRef.current <= 0) {

@@ -48,6 +48,7 @@ export function createInitialState(): GameState {
     currentQuestion: null,
     foundIndices: [],
     totalFound: 0,
+    completedQuestions: 0,
     score: 0,
     wrongCount: 0,
     timeLeft: 0,
@@ -74,6 +75,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         currentQuestion: action.questions[0] ?? null,
         foundIndices: [],
         totalFound: 0,
+        completedQuestions: 0,
         score: 0,
         wrongCount: 0,
         timeLeft: 0,
@@ -91,6 +93,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         foundIndices,
         totalFound: state.totalFound + 1,
+        completedQuestions: state.completedQuestions + (completed ? 1 : 0),
         phase: completed ? 'round_end' : 'playing',
         // One point per correctly found position, including every position in
         // a multi-position question. Time changes are owned by useTimer.
