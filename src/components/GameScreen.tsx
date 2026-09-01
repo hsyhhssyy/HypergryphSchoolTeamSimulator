@@ -55,7 +55,7 @@ export const ROUND_END_DELAY_MS = 1500;
  */
 export const WRONG_FEEDBACK_MS = 1400;
 /** Correct-hit celebration lifetime: long enough to read without slowing play. */
-export const CORRECT_FEEDBACK_MS = 1100;
+export const CORRECT_FEEDBACK_MS = WRONG_FEEDBACK_MS;
 
 export interface GameScreenProps {
   state: GameState;
@@ -378,12 +378,15 @@ export function GameScreen({ state, dispatch, timer }: GameScreenProps) {
           role="alert"
           aria-atomic="true"
         >
+          <div className="wrong-mark__burst" aria-hidden="true">
+            <i /><i /><i /><i /><i /><i /><i /><i />
+          </div>
           <div className="wrong-mark__card">
             <span className="wrong-mark__glyph" aria-hidden="true">
               ✕
             </span>
             <span className="wrong-mark__copy">
-              <strong className="wrong-mark__title">点错啦</strong>
+              <strong className="wrong-mark__title">没找到！</strong>
               <span className="wrong-mark__penalty">
                 −{WRONG_TIME_PENALTY_SECONDS} 秒
               </span>
